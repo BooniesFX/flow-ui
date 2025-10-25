@@ -2,6 +2,7 @@
 # Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 # SPDX-License-Identifier: MIT
 
+import asyncio
 import json
 from typing import Dict, List, Optional
 
@@ -83,16 +84,63 @@ class EnhancedTavilySearchAPIWrapper(OriginalTavilySearchAPIWrapper):
                 "include_images": include_images,
                 "include_image_descriptions": include_image_descriptions,
             }
-            async with aiohttp.ClientSession(trust_env=True) as session:
-                async with session.post(f"{TAVILY_API_URL}/search", json=params) as res:
-                    if res.status == 200:
-                        data = await res.text()
-                        return data
+
+            # Add timeout and retry logic
+            timeout = aiohttp.ClientTimeout(total=30, connect=10)
+            max_retries = 3
+            base_delay = 1
+
+            for attempt in range(max_retries):
+                try:
+                    async with aiohttp.ClientSession(
+                        trust_env=True,
+                        timeout=timeout,
+                        connector=aiohttp.TCPConnector(limit=10, force_close=True)
+                    ) as session:
+                        async with session.post(f"{TAVILY_API_URL}/search", json=params) as res:
+                            if res.status == 200:
+                                data = await res.text()
+                                return data
+                            elif res.status == 429:
+                                # Rate limited - wait longer
+                                delay = base_delay * (2 ** attempt) * 2
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(delay)
+                                    continue
+                                else:
+                                    raise Exception(f"Rate limit exceeded after {max_retries} attempts")
+                            elif res.status >= 500:
+                                # Server error - retry
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(base_delay * (2 ** attempt))
+                                    continue
+                                else:
+                                    raise Exception(f"Server error {res.status}: {res.reason}")
+                            else:
+                                # Client error - don't retry
+                                error_text = await res.text()
+                                raise Exception(f"API error {res.status}: {res.reason} - {error_text[:200]}")
+
+                except aiohttp.ClientError as e:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(base_delay * (2 ** attempt))
+                        continue
                     else:
-                        raise Exception(f"Error {res.status}: {res.reason}")
+                        raise Exception(f"Connection error after {max_retries} attempts: {str(e)}")
+                except asyncio.TimeoutError as e:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(base_delay * (2 ** attempt))
+                        continue
+                    else:
+                        raise Exception(f"Request timeout after {max_retries} attempts")
+
+            raise Exception("Failed to complete search request")
 
         results_json_str = await fetch()
-        return json.loads(results_json_str)
+        try:
+            return json.loads(results_json_str)
+        except json.JSONDecodeError as e:
+            raise Exception(f"Invalid JSON response from search API: {str(e)}")
 
     def clean_results_with_images(
         self, raw_results: Dict[str, List[Dict]]
@@ -114,8 +162,8 @@ class EnhancedTavilySearchAPIWrapper(OriginalTavilySearchAPIWrapper):
         images = raw_results["images"]
         for image in images:
             clean_result = {
-                "type": "image_url",
-                "image_url": {"url": image["url"]},
+                "type": "image",
+                "image_url": image["url"],
                 "image_description": image["description"],
             }
             clean_results.append(clean_result)

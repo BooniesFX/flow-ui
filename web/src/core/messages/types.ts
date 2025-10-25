@@ -24,6 +24,7 @@ export interface Message {
   finishReason?: "stop" | "interrupt" | "tool_calls";
   interruptFeedback?: string;
   resources?: Array<Resource>;
+  error?: string;
 }
 
 export interface Option {

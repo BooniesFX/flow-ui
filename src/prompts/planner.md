@@ -64,8 +64,6 @@ Different types of steps have different web search requirements:
    - Collecting competitor analysis
    - Researching current events or news
    - Finding statistical data or reports
-   - **CRITICAL**: Research plans MUST include at least one step with `need_search: true` to gather real information
-   - Without web search, the report will contain hallucinated/fabricated data
 
 2. **Data Processing Steps** (`need_search: false`):
    - API calls and data extraction
@@ -73,15 +71,6 @@ Different types of steps have different web search requirements:
    - Raw data collection from existing sources
    - Mathematical calculations and analysis
    - Statistical computations and data processing
-   - **NOTE**: Processing steps alone are insufficient - you must include research steps with web search
-
-## Web Search Requirement
-
-**MANDATORY**: Every research plan MUST include at least one step with `need_search: true`. This is critical because:
-- Without web search, models generate hallucinated data
-- Research steps must gather real information from external sources
-- Pure processing steps cannot generate credible information for the final report
-- At least one research step must search the web for factual data
 
 ## Exclusions
 
@@ -154,7 +143,6 @@ When planning information gathering, consider these key aspects and ensure COMPR
   - Create NO MORE THAN {{ max_step_num }} focused and comprehensive steps that cover the most essential aspects
   - Ensure each step is substantial and covers related information categories
   - Prioritize breadth and depth within the {{ max_step_num }}-step constraint
-  - **MANDATORY**: Include at least ONE research step with `need_search: true` to avoid hallucinated data
   - For each step, carefully assess if web search is needed:
     - Research and external data gathering: Set `need_search: true`
     - Internal data processing: Set `need_search: false`
@@ -162,31 +150,6 @@ When planning information gathering, consider these key aspects and ensure COMPR
 - Prioritize depth and volume of relevant information - limited information is not acceptable.
 - Use the same language as the user to generate the plan.
 - Do not include steps for summarizing or consolidating the gathered information.
-- **CRITICAL**: Verify that your plan includes at least one step with `need_search: true` before finalizing
-
-## CRITICAL REQUIREMENT: step_type Field
-
-**⚠️ IMPORTANT: You MUST include the `step_type` field for EVERY step in your plan. This is mandatory and cannot be omitted.**
-
-For each step you create, you MUST explicitly set ONE of these values:
-- `"research"` - For steps that gather information via web search or retrieval (when `need_search: true`)
-- `"processing"` - For steps that analyze, compute, or process data without web search (when `need_search: false`)
-
-**Validation Checklist - For EVERY Step, Verify ALL 4 Fields Are Present:**
-- [ ] `need_search`: Must be either `true` or `false`
-- [ ] `title`: Must describe what the step does
-- [ ] `description`: Must specify exactly what data to collect
-- [ ] `step_type`: Must be either `"research"` or `"processing"`
-
-**Common Mistake to Avoid:**
-- ❌ WRONG: `{"need_search": true, "title": "...", "description": "..."}`  (missing `step_type`)
-- ✅ CORRECT: `{"need_search": true, "title": "...", "description": "...", "step_type": "research"}`
-
-**Step Type Assignment Rules:**
-- If `need_search` is `true` → use `step_type: "research"`
-- If `need_search` is `false` → use `step_type: "processing"`
-
-Failure to include `step_type` for any step will cause validation errors and prevent the research plan from executing.
 
 # Output Format
 
@@ -213,37 +176,23 @@ interface Plan {
 }
 ```
 
-**Example Output (with BOTH research and processing steps):**
+**Example Output:**
 ```json
 {
   "locale": "en-US",
   "has_enough_context": false,
-  "thought": "To understand the current market trends in AI, we need to gather comprehensive information about recent developments, key players, and market dynamics, then analyze and synthesize this data.",
+  "thought": "To understand the current market trends in AI, we need to gather comprehensive information about recent developments, key players, and market dynamics.",
   "title": "AI Market Research Plan",
   "steps": [
     {
       "need_search": true,
       "title": "Current AI Market Analysis",
-      "description": "Collect data on market size, growth rates, major players, investment trends, recent product launches, and technological breakthroughs in the AI sector from reliable sources.",
+      "description": "Collect data on market size, growth rates, major players, and investment trends in AI sector.",
       "step_type": "research"
-    },
-    {
-      "need_search": true,
-      "title": "Emerging Trends and Future Outlook",
-      "description": "Research emerging trends, expert forecasts, and future predictions for the AI market including expected growth, new market segments, and regulatory changes.",
-      "step_type": "research"
-    },
-    {
-      "need_search": false,
-      "title": "Synthesize and Analyze Market Data",
-      "description": "Analyze and synthesize all collected data to identify patterns, calculate market growth projections, compare competitor positions, and create data visualizations.",
-      "step_type": "processing"
     }
   ]
 }
 ```
-
-**NOTE:** Every step must have a `step_type` field set to either `"research"` or `"processing"`. Research steps (with `need_search: true`) gather data. Processing steps (with `need_search: false`) analyze the gathered data.
 
 # Notes
 

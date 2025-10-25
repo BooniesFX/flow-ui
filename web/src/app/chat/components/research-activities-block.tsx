@@ -4,10 +4,10 @@
 import { PythonOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import { LRUCache } from "lru-cache";
-import { BookOpenText, FileText, PencilRuler, Search } from "lucide-react";
+import { AlertTriangle, BookOpenText, FileText, PencilRuler, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import React, { useMemo } from "react";
+import { useMemo, useState } from "react";
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { docco } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import { dark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -31,10 +31,6 @@ import { useMessage, useStore } from "~/core/store";
 import { parseJSON } from "~/core/utils";
 import { cn } from "~/lib/utils";
 
-// Performance optimization constants
-const MAX_ANIMATED_ITEMS = 10; // Only animate first 10 items
-const ANIMATION_DELAY_MULTIPLIER = 0.05; // Reduced delay between animations
-
 export function ResearchActivitiesBlock({
   className,
   researchId,
@@ -46,36 +42,27 @@ export function ResearchActivitiesBlock({
     state.researchActivityIds.get(researchId),
   )!;
   const ongoing = useStore((state) => state.ongoingResearchId === researchId);
-  
   return (
     <>
       <ul className={cn("flex flex-col py-4", className)}>
         {activityIds.map(
-          (activityId, i) => {
-            if (i === 0) return null;
-            
-            // Performance optimization: limit animations for large lists
-            const shouldAnimate = i < MAX_ANIMATED_ITEMS;
-            const animationDelay = shouldAnimate ? Math.min(i * ANIMATION_DELAY_MULTIPLIER, 0.5) : 0;
-            
-            return (
+          (activityId, i) =>
+            i !== 0 && (
               <motion.li
                 key={activityId}
-                style={{ transition: shouldAnimate ? "all 0.3s ease-out" : "none" }}
-                initial={shouldAnimate ? { opacity: 0, y: 24 } : { opacity: 1, y: 0 }}
+                style={{ transition: "all 0.4s ease-out" }}
+                initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={shouldAnimate ? {
-                  duration: 0.3, // Reduced from 0.4
-                  delay: animationDelay,
+                transition={{
+                  duration: 0.4,
                   ease: "easeOut",
-                } : undefined}
+                }}
               >
                 <ActivityMessage messageId={activityId} />
                 <ActivityListItem messageId={activityId} />
                 {i !== activityIds.length - 1 && <hr className="my-8" />}
               </motion.li>
-            );
-          },
+            ),
         )}
       </ul>
       {ongoing && <LoadingAnimation className="mx-4 my-12" />}
@@ -83,7 +70,7 @@ export function ResearchActivitiesBlock({
   );
 }
 
-const ActivityMessage = React.memo(({ messageId }: { messageId: string }) => {
+function ActivityMessage({ messageId }: { messageId: string }) {
   const message = useMessage(messageId);
   if (message?.agent && message.content) {
     if (message.agent !== "reporter" && message.agent !== "planner") {
@@ -97,16 +84,15 @@ const ActivityMessage = React.memo(({ messageId }: { messageId: string }) => {
     }
   }
   return null;
-});
-ActivityMessage.displayName = "ActivityMessage";
+}
 
-const ActivityListItem = React.memo(({ messageId }: { messageId: string }) => {
+function ActivityListItem({ messageId }: { messageId: string }) {
   const message = useMessage(messageId);
   if (message) {
     if (!message.isStreaming && message.toolCalls?.length) {
       for (const toolCall of message.toolCalls) {
-        if (typeof toolCall.result === "string" && toolCall.result?.startsWith("Error")) {
-          return null;
+        if (toolCall.result?.startsWith("Error")) {
+          return <ToolCallError key={toolCall.id} toolCall={toolCall} />;
         }
         if (toolCall.name === "web_search") {
           return <WebSearchToolCall key={toolCall.id} toolCall={toolCall} />;
@@ -123,8 +109,70 @@ const ActivityListItem = React.memo(({ messageId }: { messageId: string }) => {
     }
   }
   return null;
-});
-ActivityListItem.displayName = "ActivityListItem";
+}
+
+function ToolCallError({ toolCall }: { toolCall: ToolCallRuntime }) {
+  const t = useTranslations("chat.research");
+  const [expanded, setExpanded] = useState(false);
+
+  if (!toolCall.result) {
+    return null;
+  }
+
+  const errorTitle = `Error in ${toolCall.name || 'unknown tool'}`;
+  const errorDetails = toolCall.result.replace(/^Error:\s*/, '');
+  const canExpand = errorDetails.length > 100;
+
+  return (
+    <section className="mt-4 pl-4">
+      <div className="bg-red-50 border-l-4 border-red-400 p-3 dark:bg-red-950 dark:border-red-600">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <AlertTriangle className="h-5 w-5 text-red-400 mr-2" />
+            <span className="font-medium text-red-700 dark:text-red-300">
+              {errorTitle}
+            </span>
+          </div>
+          {canExpand && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-red-600 dark:text-red-400 text-sm hover:underline"
+            >
+              {expanded ? 'Hide Details' : 'Show Details'}
+            </button>
+          )}
+        </div>
+        <div className="mt-2 text-sm text-red-600 dark:text-red-300">
+          {canExpand && !expanded
+            ? errorDetails.substring(0, 100) + (errorDetails.length > 100 ? '...' : '')
+            : errorDetails
+          }
+        </div>
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={() => {
+              if (toolCall.id && window.confirm('Do you want to retry this operation?')) {
+                // Note: This would require implementing retry functionality
+                console.log('Retry requested for tool call:', toolCall.id);
+              }
+            }}
+            className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded text-xs hover:bg-red-200 dark:hover:bg-red-800"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(toolCall.result || '');
+            }}
+            className="px-3 py-1 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded text-xs hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            Copy Error
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 const __pageCache = new LRUCache<string, string>({ max: 100 });
 type SearchResult =
@@ -147,11 +195,17 @@ function WebSearchToolCall({ toolCall }: { toolCall: ToolCallRuntime }) {
   }, [toolCall.result]);
   const searchResults = useMemo<SearchResult[]>(() => {
     let results: SearchResult[] | undefined = undefined;
+    let parsingError: string | null = null;
+
     try {
-      results = toolCall.result ? parseJSON(toolCall.result, []) : undefined;
-    } catch {
-      results = undefined;
+      if (toolCall.result) {
+        results = parseJSON(toolCall.result, []);
+      }
+    } catch (error) {
+      parsingError = error instanceof Error ? error.message : "Unknown parsing error";
+      console.warn("Failed to parse search results:", { error: parsingError, result: toolCall.result?.substring(0, 200) });
     }
+
     if (Array.isArray(results)) {
       results.forEach((result) => {
         if (result.type === "page") {
@@ -160,6 +214,15 @@ function WebSearchToolCall({ toolCall }: { toolCall: ToolCallRuntime }) {
       });
     } else {
       results = [];
+      if (parsingError) {
+        // Add a fake error result to display the parsing error
+        results.push({
+          type: "page",
+          title: "Search Results Parsing Error",
+          url: "#",
+          content: `Failed to parse search results: ${parsingError}`
+        });
+      }
     }
     return results;
   }, [toolCall.result]);
@@ -202,46 +265,38 @@ function WebSearchToolCall({ toolCall }: { toolCall: ToolCallRuntime }) {
               ))}
             {pageResults
               .filter((result) => result.type === "page")
-              .slice(0, 20) // Limit displayed results for performance
-              .map((searchResult, i) => {
-                const shouldAnimate = i < 6; // Only animate first 6 results
-                return (
-                  <motion.li
-                    key={`search-result-${i}`}
-                    className="text-muted-foreground bg-accent flex max-w-40 gap-2 rounded-md px-2 py-1 text-sm"
-                    initial={shouldAnimate ? { opacity: 0, y: 10 } : { opacity: 1, y: 0 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={shouldAnimate ? {
-                      duration: 0.15, // Reduced from 0.2
-                      delay: Math.min(i * 0.05, 0.3), // Cap delay at 0.3s
-                      ease: "easeOut",
-                    } : undefined}
-                  >
-                    <FavIcon
-                      className="mt-1"
-                      url={searchResult.url}
-                      title={searchResult.title}
-                    />
-                    <a href={searchResult.url} target="_blank">
-                      {searchResult.title}
-                    </a>
-                  </motion.li>
-                );
-              })}
-            {imageResults
-              .slice(0, 10) // Limit displayed images for performance
-              .map((searchResult, i) => {
-                const shouldAnimate = i < 4; // Only animate first 4 images
-                return (
-                  <motion.li
-                    key={`search-result-${i}`}
-                    initial={shouldAnimate ? { opacity: 0, y: 10 } : { opacity: 1, y: 0 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={shouldAnimate ? {
-                      duration: 0.15,
-                      delay: Math.min(i * 0.05, 0.2),
-                      ease: "easeOut",
-                    } : undefined}
+              .map((searchResult, i) => (
+                <motion.li
+                  key={`search-result-${i}`}
+                  className="text-muted-foreground bg-accent flex max-w-40 gap-2 rounded-md px-2 py-1 text-sm"
+                  initial={{ opacity: 0, y: 10, scale: 0.66 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{
+                    duration: 0.2,
+                    delay: i * 0.1,
+                    ease: "easeOut",
+                  }}
+                >
+                  <FavIcon
+                    className="mt-1"
+                    url={searchResult.url}
+                    title={searchResult.title}
+                  />
+                  <a href={searchResult.url} target="_blank">
+                    {searchResult.title}
+                  </a>
+                </motion.li>
+              ))}
+            {imageResults.map((searchResult, i) => (
+              <motion.li
+                key={`search-result-${i}`}
+                initial={{ opacity: 0, y: 10, scale: 0.66 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{
+                  duration: 0.2,
+                  delay: i * 0.1,
+                  ease: "easeOut",
+                }}
               >
                 <a
                   className="flex flex-col gap-2 overflow-hidden rounded-md opacity-75 transition-opacity duration-300 hover:opacity-100"
@@ -257,8 +312,7 @@ function WebSearchToolCall({ toolCall }: { toolCall: ToolCallRuntime }) {
                   />
                 </a>
               </motion.li>
-                );
-              })}
+            ))}
           </ul>
         )}
       </div>
@@ -287,10 +341,10 @@ function CrawlToolCall({ toolCall }: { toolCall: ToolCallRuntime }) {
       <ul className="mt-2 flex flex-wrap gap-4">
         <motion.li
           className="text-muted-foreground bg-accent flex h-40 w-40 gap-2 rounded-md px-2 py-1 text-sm"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 10, scale: 0.66 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{
-            duration: 0.15, // Reduced for better performance
+            duration: 0.2,
             ease: "easeOut",
           }}
         >
@@ -316,7 +370,20 @@ function RetrieverToolCall({ toolCall }: { toolCall: ToolCallRuntime }) {
   const documents = useMemo<
     Array<{ id: string; title: string; content: string }>
   >(() => {
-    return toolCall.result ? parseJSON(toolCall.result, []) : [];
+    try {
+      return toolCall.result ? parseJSON(toolCall.result, []) : [];
+    } catch (error) {
+      console.warn("Failed to parse retrieved documents:", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        result: toolCall.result?.substring(0, 200)
+      });
+      // Return a fake error document to show the parsing error
+      return [{
+        id: "parse-error",
+        title: "Document Retrieval Error",
+        content: `Failed to parse retrieved documents: ${error instanceof Error ? error.message : "Unknown error"}`
+      }];
+    }
   }, [toolCall.result]);
   return (
     <section className="mt-4 pl-4">
@@ -344,25 +411,22 @@ function RetrieverToolCall({ toolCall }: { toolCall: ToolCallRuntime }) {
                   />
                 </li>
               ))}
-            {documents?.map((doc, i) => {
-              const shouldAnimate = i < 4; // Only animate first 4 documents
-              return (
-                <motion.li
-                  key={`search-result-${i}`}
-                  className="text-muted-foreground bg-accent flex max-w-40 gap-2 rounded-md px-2 py-1 text-sm"
-                  initial={shouldAnimate ? { opacity: 0, y: 10 } : { opacity: 1, y: 0 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={shouldAnimate ? {
-                    duration: 0.15,
-                    delay: Math.min(i * 0.05, 0.2),
-                    ease: "easeOut",
-                  } : undefined}
-                >
-                  <FileText size={32} />
-                  {doc.title} (chunk-{i},size-{doc.content.length})
-                </motion.li>
-              );
-            })}
+            {documents?.map((doc, i) => (
+              <motion.li
+                key={`search-result-${i}`}
+                className="text-muted-foreground bg-accent flex max-w-40 gap-2 rounded-md px-2 py-1 text-sm"
+                initial={{ opacity: 0, y: 10, scale: 0.66 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{
+                  duration: 0.2,
+                  delay: i * 0.1,
+                  ease: "easeOut",
+                }}
+              >
+                <FileText size={32} />
+                {doc.title} (chunk-{i},size-{doc.content.length})
+              </motion.li>
+            ))}
           </ul>
         )}
       </div>
@@ -410,19 +474,40 @@ function PythonToolCall({ toolCall }: { toolCall: ToolCallRuntime }) {
 function PythonToolCallResult({ result }: { result: string }) {
   const t = useTranslations("chat.research");
   const { resolvedTheme } = useTheme();
-  const hasError = useMemo(
-    () => result.includes("Error executing code:\n"),
-    [result],
-  );
-  const error = useMemo(() => {
-    if (hasError) {
-      const parts = result.split("```\nError: ");
-      if (parts.length > 1) {
-        return parts[1]!.trim();
-      }
+  
+  const parseError = useMemo(() => {
+    if (!result.includes("Error executing code:\n")) {
+      return null;
     }
+    
+    const parts = result.split("```\nError: ");
+    if (parts.length > 1) {
+      const errorText = parts[1]!.trim();
+      
+      // Parse common Python error types
+      const errorPattern = /^(\w+Error|Exception):(.+)$/m;
+      const errorMatch = errorPattern.exec(errorText);
+      if (errorMatch) {
+        const [, errorType, errorMessage] = errorMatch;
+        return {
+          type: errorType,
+          message: (errorMessage ?? "").trim(),
+          full: errorText
+        };
+      }
+      
+      return {
+        type: "Error",
+        message: errorText.split('\n')[0],
+        full: errorText
+      };
+    }
+    
     return null;
-  }, [result, hasError]);
+  }, [result]);
+  
+  const hasError = parseError !== null;
+  
   const stdout = useMemo(() => {
     if (!hasError) {
       const parts = result.split("```\nStdout: ");
@@ -432,11 +517,51 @@ function PythonToolCallResult({ result }: { result: string }) {
     }
     return null;
   }, [result, hasError]);
+  
+  const getErrorSeverity = (errorType: string) => {
+    if (errorType.includes('SyntaxError')) return 'critical';
+    if (errorType.includes('ImportError') || errorType.includes('ModuleNotFoundError')) return 'warning';
+    if (errorType.includes('TypeError') || errorType.includes('ValueError')) return 'error';
+    return 'info';
+  };
+  
+  const getErrorIcon = (severity: string) => {
+    switch (severity) {
+      case 'critical': return '🚫';
+      case 'warning': return '⚠️';
+      case 'error': return '❌';
+      default: return '⚠️';
+    }
+  };
+  
   return (
     <>
       <div className="mt-4 font-medium italic">
-        {hasError ? t("errorExecutingCode") : t("executionOutput")}
+        {hasError ? (
+          <div className="flex items-center gap-2">
+            <span>{getErrorIcon(getErrorSeverity(parseError?.type ?? "Error"))}</span>
+            <span>{t("errorExecutingCode")}: {parseError?.type ?? "Error"}</span>
+          </div>
+        ) : (
+          t("executionOutput")
+        )}
       </div>
+      
+      {hasError && (
+        <div className="bg-orange-50 border-l-4 border-orange-400 p-3 mb-2 dark:bg-orange-950 dark:border-orange-600">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-5 w-5 text-orange-400" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-orange-700 dark:text-orange-300">
+                <strong>Error Details:</strong> {parseError?.message ?? "Unknown error"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="bg-accent mt-2 max-h-[400px] max-w-[calc(100%-120px)] overflow-y-auto rounded-md p-2 text-sm">
         <SyntaxHighlighter
           language="plaintext"
@@ -448,7 +573,7 @@ function PythonToolCallResult({ result }: { result: string }) {
             boxShadow: "none",
           }}
         >
-          {error ?? stdout ?? "(empty)"}
+          {hasError ? (parseError?.full ?? "Error details not available") : (stdout ?? "(empty)")}
         </SyntaxHighlighter>
       </div>
     </>

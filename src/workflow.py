@@ -5,7 +5,6 @@ import logging
 
 from src.config.configuration import get_recursion_limit
 from src.graph import build_graph
-from src.graph.utils import build_clarified_topic_from_history
 
 # Configure logging
 logging.basicConfig(
@@ -66,8 +65,6 @@ async def run_agent_workflow_async(
             "auto_accepted_plan": True,
             "enable_background_investigation": enable_background_investigation,
         }
-        initial_state["research_topic"] = user_input
-        initial_state["clarified_research_topic"] = user_input
 
         # Only set clarification parameter if explicitly provided
         # If None, State class default will be used (enable_clarification=False)
@@ -140,18 +137,7 @@ async def run_agent_workflow_async(
             current_state["messages"] = final_state["messages"] + [
                 {"role": "user", "content": user_response}
             ]
-            for key in (
-                "clarification_history",
-                "clarification_rounds",
-                "clarified_research_topic",
-                "research_topic",
-                "locale",
-                "enable_clarification",
-                "max_clarification_rounds",
-            ):
-                if key in final_state:
-                    current_state[key] = final_state[key]
-
+            # Recursive call for clarification continuation
             return await run_agent_workflow_async(
                 user_input=user_response,
                 max_plan_iterations=max_plan_iterations,

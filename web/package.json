@@ -72,6 +72,7 @@
     "react-hook-form": "^7.56.1",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^15.6.1",
+    "reactflow": "^11.11.4",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
@@ -89,6 +90,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@tailwindcss/postcss": "^4.0.15",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
     "@types/hast": "^3.0.4",
     "@types/node": "^20.14.10",
     "@types/react": "^19.0.0",
@@ -97,13 +100,16 @@
     "dotenv-cli": "^8.0.0",
     "eslint": "^9.23.0",
     "eslint-config-next": "^15.2.3",
+    "happy-dom": "^20.0.8",
+    "jsdom": "^27.0.1",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "raw-loader": "^4.0.2",
     "tailwindcss": "^4.0.15",
     "typescript": "^5.8.2",
-    "typescript-eslint": "^8.27.0"
+    "typescript-eslint": "^8.27.0",
+    "vitest": "^4.0.3"
   },
   "ct3aMetadata": {
     "initVersion": "7.39.3"

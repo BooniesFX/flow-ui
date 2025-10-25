@@ -129,14 +129,12 @@ class TavilySearchWithImages(TavilySearchResults):  # type: ignore[override, ove
             )
         except Exception as e:
             logger.error("Tavily search returned error: {}".format(e))
-            error_result = json.dumps({"error": repr(e)}, ensure_ascii=False)
-            return error_result, {}
+            return repr(e), {}
         cleaned_results = self.api_wrapper.clean_results_with_images(raw_results)
         logger.debug(
             "sync: %s", json.dumps(cleaned_results, indent=2, ensure_ascii=False)
         )
-        result_json = json.dumps(cleaned_results, ensure_ascii=False)
-        return result_json, raw_results
+        return cleaned_results, raw_results
 
     async def _arun(
         self,
@@ -158,11 +156,9 @@ class TavilySearchWithImages(TavilySearchResults):  # type: ignore[override, ove
             )
         except Exception as e:
             logger.error("Tavily search returned error: {}".format(e))
-            error_result = json.dumps({"error": repr(e)}, ensure_ascii=False)
-            return error_result, {}
+            return repr(e), {}
         cleaned_results = self.api_wrapper.clean_results_with_images(raw_results)
         logger.debug(
             "async: %s", json.dumps(cleaned_results, indent=2, ensure_ascii=False)
         )
-        result_json = json.dumps(cleaned_results, ensure_ascii=False)
-        return result_json, raw_results
+        return cleaned_results, raw_results

@@ -26,6 +26,7 @@ export const useStore = create<{
   researchActivityIds: Map<string, string[]>;
   ongoingResearchId: string | null;
   openResearchId: string | null;
+  selectedNodeId: string | null;
 
   appendMessage: (message: Message) => void;
   updateMessage: (message: Message) => void;
@@ -33,6 +34,7 @@ export const useStore = create<{
   openResearch: (researchId: string | null) => void;
   closeResearch: () => void;
   setOngoingResearch: (researchId: string | null) => void;
+  setSelectedNodeId: (nodeId: string | null) => void;
 }>((set) => ({
   responding: false,
   threadId: THREAD_ID,
@@ -44,6 +46,7 @@ export const useStore = create<{
   researchActivityIds: new Map<string, string[]>(),
   ongoingResearchId: null,
   openResearchId: null,
+  selectedNodeId: null,
 
   appendMessage(message: Message) {
     set((state) => ({
@@ -71,6 +74,9 @@ export const useStore = create<{
   },
   setOngoingResearch(researchId: string | null) {
     set({ ongoingResearchId: researchId });
+  },
+  setSelectedNodeId(nodeId: string | null) {
+    set({ selectedNodeId: nodeId });
   },
 }));
 
@@ -120,20 +126,6 @@ export async function sendMessage(
 
   setResponding(true);
   let messageId: string | undefined;
-  const pendingUpdates = new Map<string, Message>();
-  let updateTimer: NodeJS.Timeout | undefined;
-
-  const scheduleUpdate = () => {
-    if (updateTimer) clearTimeout(updateTimer);
-    updateTimer = setTimeout(() => {
-      // Batch update message status
-      if (pendingUpdates.size > 0) {
-        useStore.getState().updateMessages(Array.from(pendingUpdates.values()));
-        pendingUpdates.clear();
-      }
-    }, 16); // ~60fps
-  };
-
   try {
     for await (const event of stream) {
       const { type, data } = event;
@@ -159,32 +151,40 @@ export async function sendMessage(
       message ??= getMessage(messageId);
       if (message) {
         message = mergeMessage(message, event);
-        // Collect pending messages for update, instead of updating immediately.
-        pendingUpdates.set(message.id, message);
-        scheduleUpdate();
-
+        updateMessage(message);
       }
     }
-  } catch {
-    toast("An error occurred while generating the response. Please try again.");
-    // Update message status.
+  } catch (error) {
+    console.error("Stream processing error:", error);
+    
+    let errorMessage = "An error occurred while generating the response. Please try again.";
+    if (error instanceof Error) {
+      if (error.name === "AbortError") {
+        errorMessage = "Request was cancelled. Please try again.";
+      } else if (error.name === "NetworkError" || error.message.includes("fetch")) {
+        errorMessage = "Network connection failed. Please check your internet connection and try again.";
+      } else if (error.message.includes("timeout")) {
+        errorMessage = "Request timed out. Please try again.";
+      } else {
+        errorMessage = `Error: ${error.message}`;
+      }
+    }
+    
+    toast.error(errorMessage);
+    
+    // Update message status with error information
     // TODO: const isAborted = (error as Error).name === "AbortError";
     if (messageId != null) {
       const message = getMessage(messageId);
       if (message?.isStreaming) {
         message.isStreaming = false;
+        message.error = error instanceof Error ? error.message : "Unknown error occurred";
         useStore.getState().updateMessage(message);
       }
     }
     useStore.getState().setOngoingResearch(null);
   } finally {
     setResponding(false);
-    // Ensure all pending updates are processed.
-    if (updateTimer) clearTimeout(updateTimer);
-    if (pendingUpdates.size > 0) {
-      useStore.getState().updateMessages(Array.from(pendingUpdates.values()));
-    }
-
   }
 }
 
@@ -334,7 +334,21 @@ export async function listenToPodcast(researchId: string) {
       try {
         audioUrl = await generatePodcast(reportMessage.content);
       } catch (e) {
-        console.error(e);
+        console.error("Podcast generation error:", e);
+        
+        let errorMessage = "An error occurred while generating podcast. Please try again.";
+        if (e instanceof Error) {
+          if (e.message.includes("timeout")) {
+            errorMessage = "Podcast generation timed out. Please try again with a shorter text.";
+          } else if (e.message.includes("429") || e.message.includes("rate limit")) {
+            errorMessage = "Too many requests. Please wait a moment and try again.";
+          } else if (e.message.includes("network") || e.message.includes("fetch")) {
+            errorMessage = "Network error during podcast generation. Please check your connection.";
+          } else {
+            errorMessage = `Podcast generation failed: ${e.message}`;
+          }
+        }
+        
         useStore.setState((state) => ({
           messages: new Map(useStore.getState().messages).set(
             podCastMessageId,
@@ -342,13 +356,18 @@ export async function listenToPodcast(researchId: string) {
               ...state.messages.get(podCastMessageId)!,
               content: JSON.stringify({
                 ...podcastObject,
-                error: e instanceof Error ? e.message : "Unknown error",
+                error: errorMessage,
+                detailedError: e instanceof Error ? {
+                  name: e.name,
+                  message: e.message,
+                  stack: e.stack
+                } : "Unknown error",
               }),
               isStreaming: false,
             },
           ),
         }));
-        toast("An error occurred while generating podcast. Please try again.");
+        toast.error(errorMessage);
         return;
       }
       useStore.setState((state) => ({
@@ -412,6 +431,10 @@ export function useLastFeedbackMessageId() {
     }),
   );
   return waitingForFeedbackMessageId;
+}
+
+export function useSelectedNodeId() {
+  return useStore(useShallow((state) => state.selectedNodeId));
 }
 
 export function useToolCalls() {

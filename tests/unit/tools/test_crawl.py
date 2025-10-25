@@ -1,4 +1,3 @@
-import json
 from unittest.mock import Mock, patch
 
 from src.tools.crawl import crawl_tool
@@ -22,11 +21,10 @@ class TestCrawlTool:
         result = crawl_tool(url)
 
         # Assert
-        assert isinstance(result, str)
-        result_dict = json.loads(result)
-        assert result_dict["url"] == url
-        assert "crawled_content" in result_dict
-        assert len(result_dict["crawled_content"]) <= 1000
+        assert isinstance(result, dict)
+        assert result["url"] == url
+        assert "crawled_content" in result
+        assert len(result["crawled_content"]) <= 1000
         mock_crawler_class.assert_called_once()
         mock_crawler.crawl.assert_called_once_with(url)
         mock_article.to_markdown.assert_called_once()
@@ -47,8 +45,7 @@ class TestCrawlTool:
         result = crawl_tool(url)
 
         # Assert
-        result_dict = json.loads(result)
-        assert result_dict["crawled_content"] == short_content
+        assert result["crawled_content"] == short_content
 
     @patch("src.tools.crawl.Crawler")
     @patch("src.tools.crawl.logger")
@@ -110,24 +107,3 @@ class TestCrawlTool:
         assert "Failed to crawl" in result
         assert "Markdown conversion error" in result
         mock_logger.error.assert_called_once()
-
-    @patch("src.tools.crawl.Crawler")
-    def test_crawl_tool_with_none_content(self, mock_crawler_class):
-        # Arrange
-        mock_crawler = Mock()
-        mock_article = Mock()
-        mock_article.to_markdown.return_value = "# Article\n\n*No content available*\n"
-        mock_crawler.crawl.return_value = mock_article
-        mock_crawler_class.return_value = mock_crawler
-
-        url = "https://example.com"
-
-        # Act
-        result = crawl_tool(url)
-
-        # Assert
-        assert isinstance(result, str)
-        result_dict = json.loads(result)
-        assert result_dict["url"] == url
-        assert "crawled_content" in result_dict
-        assert "No content available" in result_dict["crawled_content"]

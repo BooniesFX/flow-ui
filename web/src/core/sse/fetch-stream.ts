@@ -25,48 +25,26 @@ export async function* fetchStream(
   if (!reader) {
     throw new Error("Response body is not readable");
   }
-
-  try {
-    let buffer = "";
-    const MAX_BUFFER_SIZE = 1024 * 1024; // 1MB buffer size limit
-
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += value;
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        // Handle remaining buffer data
-        if (buffer.trim()) {
-          const event = parseEvent(buffer.trim());
-          if (event) {
-            yield event;
-          }
-        }
+      const index = buffer.indexOf("\n\n");
+      if (index === -1) {
         break;
       }
-
-      buffer += value;
-
-      // Check buffer size to avoid memory overflow
-      if (buffer.length > MAX_BUFFER_SIZE) {
-        throw new Error("Buffer overflow - received too much data without proper event boundaries");
-      }
-
-      let newlineIndex;
-      while ((newlineIndex = buffer.indexOf("\n\n")) !== -1) {
-        const chunk = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 2);
-
-        if (chunk.trim()) {
-          const event = parseEvent(chunk);
-          if (event) {
-            yield event;
-          }
-        }
+      const chunk = buffer.slice(0, index);
+      buffer = buffer.slice(index + 2);
+      const event = parseEvent(chunk);
+      if (event) {
+        yield event;
       }
     }
-  } finally {
-    reader.releaseLock(); // Release the reader lock
   }
-
 }
 
 function parseEvent(chunk: string) {

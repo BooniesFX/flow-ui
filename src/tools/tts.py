@@ -130,4 +130,16 @@ class VolcengineTTS:
 
         except Exception as e:
             logger.exception(f"Error in TTS API call: {str(e)}")
-            return {"success": False, "error": "TTS API call error", "audio_data": None}
+            # Provide more specific error information
+            if "timeout" in str(e).lower():
+                error_msg = "TTS API timeout - the request took too long to process"
+            elif "connection" in str(e).lower():
+                error_msg = "TTS API connection error - unable to reach the service"
+            elif "auth" in str(e).lower() or "unauthorized" in str(e).lower():
+                error_msg = "TTS API authentication error - invalid API key or credentials"
+            elif "rate" in str(e).lower() and "limit" in str(e).lower():
+                error_msg = "TTS API rate limit exceeded - please try again later"
+            else:
+                error_msg = f"TTS API error: {str(e)}"
+
+            return {"success": False, "error": error_msg, "audio_data": None}

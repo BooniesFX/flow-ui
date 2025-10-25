@@ -1,7 +1,6 @@
 # Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 # SPDX-License-Identifier: MIT
 
-import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -89,7 +88,7 @@ class TestTavilySearchWithImages:
 
         result, raw = search_tool._run("test query")
 
-        assert result == json.dumps(sample_cleaned_results, ensure_ascii=False)
+        assert result == sample_cleaned_results
         assert raw == sample_raw_results
 
         mock_api_wrapper.raw_results.assert_called_once_with(
@@ -114,9 +113,7 @@ class TestTavilySearchWithImages:
 
         result, raw = search_tool._run("test query")
 
-        result_dict = json.loads(result)
-        assert "error" in result_dict
-        assert "API Error" in result_dict["error"]
+        assert "API Error" in result
         assert raw == {}
         mock_api_wrapper.clean_results_with_images.assert_not_called()
 
@@ -134,7 +131,7 @@ class TestTavilySearchWithImages:
 
         result, raw = await search_tool._arun("test query")
 
-        assert result == json.dumps(sample_cleaned_results, ensure_ascii=False)
+        assert result == sample_cleaned_results
         assert raw == sample_raw_results
 
         mock_api_wrapper.raw_results_async.assert_called_once_with(
@@ -162,9 +159,7 @@ class TestTavilySearchWithImages:
 
         result, raw = await search_tool._arun("test query")
 
-        result_dict = json.loads(result)
-        assert "error" in result_dict
-        assert "Async API Error" in result_dict["error"]
+        assert "Async API Error" in result
         assert raw == {}
         mock_api_wrapper.clean_results_with_images.assert_not_called()
 
@@ -182,7 +177,7 @@ class TestTavilySearchWithImages:
 
         result, raw = search_tool._run("test query", run_manager=mock_run_manager)
 
-        assert result == json.dumps(sample_cleaned_results, ensure_ascii=False)
+        assert result == sample_cleaned_results
         assert raw == sample_raw_results
 
     @pytest.mark.asyncio
@@ -202,5 +197,5 @@ class TestTavilySearchWithImages:
             "test query", run_manager=mock_run_manager
         )
 
-        assert result == json.dumps(sample_cleaned_results, ensure_ascii=False)
+        assert result == sample_cleaned_results
         assert raw == sample_raw_results

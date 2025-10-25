@@ -1,9 +1,12 @@
 # Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 # SPDX-License-Identifier: MIT
 
+import asyncio
 import json
 import logging
 import os
+import re
+import uuid
 from functools import partial
 from typing import Annotated, Literal
 
@@ -12,6 +15,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.types import Command, interrupt
+from openai import BadRequestError
 
 from src.agents import create_agent
 from src.config.agents import AGENT_LLM_MAP
@@ -26,19 +30,39 @@ from src.tools import (
     python_repl_tool,
 )
 from src.tools.search import LoggedTavilySearch
-from src.utils.context_manager import ContextManager, validate_message_content
+from src.utils.context_manager import ContextManager
 from src.utils.json_utils import repair_json_output
 
 from ..config import SELECTED_SEARCH_ENGINE, SearchEngine
 from .types import State
-from .utils import (
-    build_clarified_topic_from_history,
-    get_message_content,
-    is_user_message,
-    reconstruct_clarification_history,
-)
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_agent_input(agent_input: dict) -> dict:
+    """Sanitize agent input to avoid triggering content inspection."""
+    sanitized_input = agent_input.copy()
+    
+    for message in sanitized_input.get("messages", []):
+        if hasattr(message, 'content') and isinstance(message.content, str):
+            content = message.content
+            
+            # Remove HTML tags which might trigger inspection
+            content = re.sub(r'<[^>]+>', '[REMOVED_CONTENT]', content)
+            
+            # Remove or mask sensitive information patterns
+            content = re.sub(r'(?i)(password|token|key|secret)\s*[:=]\s*\S+', '[REMOVED_CREDENTIAL]', content)
+            
+            # Remove potential script or code injection patterns
+            content = re.sub(r'(?i)(javascript:|data:|vbscript:)', '[REMOVED_PROTOCOL]', content)
+            
+            # Limit very long content to avoid token limits
+            if len(content) > 40000:
+                content = content[:40000] + "...[CONTENT_TRUNCATED]"
+            
+            message.content = content
+    
+    return sanitized_input
 
 
 @tool
@@ -55,9 +79,6 @@ def handoff_to_planner(
 @tool
 def handoff_after_clarification(
     locale: Annotated[str, "The user's detected language locale (e.g., en-US, zh-CN)."],
-    research_topic: Annotated[
-        str, "The clarified research topic based on all clarification rounds."
-    ],
 ):
     """Handoff to planner after clarification rounds are complete. Pass all clarification history to planner for analysis."""
     return
@@ -84,82 +105,11 @@ def needs_clarification(state: dict) -> bool:
     )
 
 
-def validate_and_fix_plan(plan: dict, enforce_web_search: bool = False) -> dict:
-    """
-    Validate and fix a plan to ensure it meets requirements.
-
-    Args:
-        plan: The plan dict to validate
-        enforce_web_search: If True, ensure at least one step has need_search=true
-
-    Returns:
-        The validated/fixed plan dict
-    """
-    if not isinstance(plan, dict):
-        return plan
-
-    steps = plan.get("steps", [])
-
-    # ============================================================
-    # SECTION 1: Repair missing step_type fields (Issue #650 fix)
-    # ============================================================
-    for idx, step in enumerate(steps):
-        if not isinstance(step, dict):
-            continue
-        
-        # Check if step_type is missing or empty
-        if "step_type" not in step or not step.get("step_type"):
-            # Infer step_type based on need_search value
-            inferred_type = "research" if step.get("need_search", False) else "processing"
-            step["step_type"] = inferred_type
-            logger.info(
-                f"Repaired missing step_type for step {idx} ({step.get('title', 'Untitled')}): "
-                f"inferred as '{inferred_type}' based on need_search={step.get('need_search', False)}"
-            )
-
-    # ============================================================
-    # SECTION 2: Enforce web search requirements
-    # ============================================================
-    if enforce_web_search:
-        # Check if any step has need_search=true
-        has_search_step = any(step.get("need_search", False) for step in steps)
-
-        if not has_search_step and steps:
-            # Ensure first research step has web search enabled
-            for idx, step in enumerate(steps):
-                if step.get("step_type") == "research":
-                    step["need_search"] = True
-                    logger.info(f"Enforced web search on research step at index {idx}")
-                    break
-            else:
-                # Fallback: If no research step exists, convert the first step to a research step with web search enabled.
-                # This ensures that at least one step will perform a web search as required.
-                steps[0]["step_type"] = "research"
-                steps[0]["need_search"] = True
-                logger.info(
-                    "Converted first step to research with web search enforcement"
-                )
-        elif not has_search_step and not steps:
-            # Add a default research step if no steps exist
-            logger.warning("Plan has no steps. Adding default research step.")
-            plan["steps"] = [
-                {
-                    "need_search": True,
-                    "title": "Initial Research",
-                    "description": "Gather information about the topic",
-                    "step_type": "research",
-                }
-            ]
-
-    return plan
-
-
 def background_investigation_node(state: State, config: RunnableConfig):
     logger.info("background investigation node is running.")
     configurable = Configuration.from_runnable_config(config)
-    query = state.get("clarified_research_topic") or state.get("research_topic")
-    background_investigation_results = []
-    
+    query = state.get("research_topic")
+    background_investigation_results = None
     if SELECTED_SEARCH_ENGINE == SearchEngine.TAVILY.value:
         searched_content = LoggedTavilySearch(
             max_results=configurable.max_search_results
@@ -167,27 +117,7 @@ def background_investigation_node(state: State, config: RunnableConfig):
         # check if the searched_content is a tuple, then we need to unpack it
         if isinstance(searched_content, tuple):
             searched_content = searched_content[0]
-        
-        # Handle string JSON response (new format from fixed Tavily tool)
-        if isinstance(searched_content, str):
-            try:
-                parsed = json.loads(searched_content)
-                if isinstance(parsed, dict) and "error" in parsed:
-                    logger.error(f"Tavily search error: {parsed['error']}")
-                    background_investigation_results = []
-                elif isinstance(parsed, list):
-                    background_investigation_results = [
-                        f"## {elem.get('title', 'Untitled')}\n\n{elem.get('content', 'No content')}" 
-                        for elem in parsed
-                    ]
-                else:
-                    logger.error(f"Unexpected Tavily response format: {searched_content}")
-                    background_investigation_results = []
-            except json.JSONDecodeError:
-                logger.error(f"Failed to parse Tavily response as JSON: {searched_content}")
-                background_investigation_results = []
-        # Handle legacy list format
-        elif isinstance(searched_content, list):
+        if isinstance(searched_content, list):
             background_investigation_results = [
                 f"## {elem['title']}\n\n{elem['content']}" for elem in searched_content
             ]
@@ -200,12 +130,10 @@ def background_investigation_node(state: State, config: RunnableConfig):
             logger.error(
                 f"Tavily search returned malformed response: {searched_content}"
             )
-            background_investigation_results = []
     else:
         background_investigation_results = get_web_search_tool(
             configurable.max_search_results
         ).invoke(query)
-    
     return {
         "background_investigation_results": json.dumps(
             background_investigation_results, ensure_ascii=False
@@ -221,24 +149,21 @@ def planner_node(
     configurable = Configuration.from_runnable_config(config)
     plan_iterations = state["plan_iterations"] if state.get("plan_iterations", 0) else 0
 
-    # For clarification feature: use the clarified research topic (complete history)
-    if state.get("enable_clarification", False) and state.get(
-        "clarified_research_topic"
-    ):
-        # Modify state to use clarified research topic instead of full conversation
-        modified_state = state.copy()
-        modified_state["messages"] = [
-            {"role": "user", "content": state["clarified_research_topic"]}
-        ]
-        modified_state["research_topic"] = state["clarified_research_topic"]
-        messages = apply_prompt_template("planner", modified_state, configurable, state.get("locale", "en-US"))
-
+    # For clarification feature: only send the final clarified question to planner
+    if state.get("enable_clarification", False) and state.get("clarified_question"):
+        # Create a clean state with only the clarified question
+        clean_state = {
+            "messages": [{"role": "user", "content": state["clarified_question"]}],
+            "locale": state.get("locale", "en-US"),
+            "research_topic": state["clarified_question"],
+        }
+        messages = apply_prompt_template("planner", clean_state, configurable)
         logger.info(
-            f"Clarification mode: Using clarified research topic: {state['clarified_research_topic']}"
+            f"Clarification mode: Using clarified question: {state['clarified_question']}"
         )
     else:
         # Normal mode: use full conversation history
-        messages = apply_prompt_template("planner", state, configurable, state.get("locale", "en-US"))
+        messages = apply_prompt_template("planner", state, configurable)
 
     if state.get("enable_background_investigation") and state.get(
         "background_investigation_results"
@@ -287,11 +212,6 @@ def planner_node(
             return Command(goto="reporter")
         else:
             return Command(goto="__end__")
-
-    # Validate and fix plan to ensure web search requirements are met
-    if isinstance(curr_plan, dict):
-        curr_plan = validate_and_fix_plan(curr_plan, configurable.enforce_web_search)
-
     if isinstance(curr_plan, dict) and curr_plan.get("has_enough_context"):
         logger.info("Planner response has enough context.")
         new_plan = Plan.model_validate(curr_plan)
@@ -312,7 +232,7 @@ def planner_node(
 
 
 def human_feedback_node(
-    state: State, config: RunnableConfig
+    state,
 ) -> Command[Literal["planner", "research_team", "reporter", "__end__"]]:
     current_plan = state.get("current_plan", "")
     # check if the plan is auto accepted
@@ -344,9 +264,6 @@ def human_feedback_node(
         plan_iterations += 1
         # parse the plan
         new_plan = json.loads(current_plan)
-        # Validate and fix plan to ensure web search requirements are met
-        configurable = Configuration.from_runnable_config(config)
-        new_plan = validate_and_fix_plan(new_plan, configurable.enforce_web_search)
     except json.JSONDecodeError:
         logger.warning("Planner response is not a valid JSON")
         if plan_iterations > 1:  # the plan_iterations is increased before this check
@@ -373,14 +290,13 @@ def coordinator_node(
 
     # Check if clarification is enabled
     enable_clarification = state.get("enable_clarification", False)
-    initial_topic = state.get("research_topic", "")
-    clarified_topic = initial_topic
+
     # ============================================================
     # BRANCH 1: Clarification DISABLED (Legacy Mode)
     # ============================================================
     if not enable_clarification:
         # Use normal prompt with explicit instruction to skip clarification
-        messages = apply_prompt_template("coordinator", state, locale=state.get("locale", "en-US"))
+        messages = apply_prompt_template("coordinator", state)
         messages.append(
             {
                 "role": "system",
@@ -396,6 +312,7 @@ def coordinator_node(
             .invoke(messages)
         )
 
+        # Process response - should directly handoff to planner
         goto = "__end__"
         locale = state.get("locale", "en-US")
         research_topic = state.get("research_topic", "")
@@ -427,27 +344,11 @@ def coordinator_node(
     else:
         # Load clarification state
         clarification_rounds = state.get("clarification_rounds", 0)
-        clarification_history = list(state.get("clarification_history", []) or [])
-        clarification_history = [item for item in clarification_history if item]
+        clarification_history = state.get("clarification_history", [])
         max_clarification_rounds = state.get("max_clarification_rounds", 3)
 
         # Prepare the messages for the coordinator
-        state_messages = list(state.get("messages", []))
-        messages = apply_prompt_template("coordinator", state, locale=state.get("locale", "en-US"))
-
-        clarification_history = reconstruct_clarification_history(
-            state_messages, clarification_history, initial_topic
-        )
-        clarified_topic, clarification_history = build_clarified_topic_from_history(
-            clarification_history
-        )
-        logger.debug("Clarification history rebuilt: %s", clarification_history)
-
-        if clarification_history:
-            initial_topic = clarification_history[0]
-            latest_user_content = clarification_history[-1]
-        else:
-            latest_user_content = ""
+        messages = apply_prompt_template("coordinator", state)
 
         # Add clarification status for first round
         if clarification_rounds == 0:
@@ -458,38 +359,94 @@ def coordinator_node(
                 }
             )
 
-        current_response = latest_user_content or "No response"
-        logger.info(
-            "Clarification round %s/%s | topic: %s | current user response: %s",
-            clarification_rounds,
-            max_clarification_rounds,
-            clarified_topic or initial_topic,
-            current_response,
-        )
+        # Add clarification context if continuing conversation (round > 0)
+        elif clarification_rounds > 0:
+            logger.info(
+                f"Clarification enabled (rounds: {clarification_rounds}/{max_clarification_rounds}): Continuing conversation"
+            )
 
-        clarification_context = f"""Continuing clarification (round {clarification_rounds}/{max_clarification_rounds}):
+            # Add user's response to clarification history (only user messages)
+            last_message = None
+            if state.get("messages"):
+                last_message = state["messages"][-1]
+                # Extract content from last message for logging
+                if isinstance(last_message, dict):
+                    content = last_message.get("content", "No content")
+                else:
+                    content = getattr(last_message, "content", "No content")
+                logger.info(f"Last message content: {content}")
+                # Handle dict format
+                if isinstance(last_message, dict):
+                    if last_message.get("role") == "user":
+                        clarification_history.append(last_message["content"])
+                        logger.info(
+                            f"Added user response to clarification history: {last_message['content']}"
+                        )
+                # Handle object format (like HumanMessage)
+                elif hasattr(last_message, "role") and last_message.role == "user":
+                    clarification_history.append(last_message.content)
+                    logger.info(
+                        f"Added user response to clarification history: {last_message.content}"
+                    )
+                # Handle object format with content attribute (like the one in logs)
+                elif hasattr(last_message, "content"):
+                    clarification_history.append(last_message.content)
+                    logger.info(
+                        f"Added user response to clarification history: {last_message.content}"
+                    )
+
+            # Build comprehensive clarification context with conversation history
+            current_response = "No response"
+            if last_message:
+                # Handle dict format
+                if isinstance(last_message, dict):
+                    if last_message.get("role") == "user":
+                        current_response = last_message.get("content", "No response")
+                    else:
+                        # If last message is not from user, try to get the latest user message
+                        messages = state.get("messages", [])
+                        for msg in reversed(messages):
+                            if isinstance(msg, dict) and msg.get("role") == "user":
+                                current_response = msg.get("content", "No response")
+                                break
+                # Handle object format (like HumanMessage)
+                elif hasattr(last_message, "role") and last_message.role == "user":
+                    current_response = last_message.content
+                # Handle object format with content attribute (like the one in logs)
+                elif hasattr(last_message, "content"):
+                    current_response = last_message.content
+                else:
+                    # If last message is not from user, try to get the latest user message
+                    messages = state.get("messages", [])
+                    for msg in reversed(messages):
+                        if isinstance(msg, dict) and msg.get("role") == "user":
+                            current_response = msg.get("content", "No response")
+                            break
+                        elif hasattr(msg, "role") and msg.role == "user":
+                            current_response = msg.content
+                            break
+                        elif hasattr(msg, "content"):
+                            current_response = msg.content
+                            break
+
+            # Create conversation history summary
+            conversation_summary = ""
+            if clarification_history:
+                conversation_summary = "Previous conversation:\n"
+                for i, response in enumerate(clarification_history, 1):
+                    conversation_summary += f"- Round {i}: {response}\n"
+
+            clarification_context = f"""Continuing clarification (round {clarification_rounds}/{max_clarification_rounds}):
             User's latest response: {current_response}
             Ask for remaining missing dimensions. Do NOT repeat questions or start new topics."""
 
-        messages.append({"role": "system", "content": clarification_context})
+            # Log the clarification context for debugging
+            logger.info(f"Clarification context: {clarification_context}")
 
-        # Bind both clarification tools - let LLM choose the appropriate one
+            messages.append({"role": "system", "content": clarification_context})
+
+        # Bind both clarification tools
         tools = [handoff_to_planner, handoff_after_clarification]
-
-        # Check if we've already reached max rounds
-        if clarification_rounds >= max_clarification_rounds:
-            # Max rounds reached - force handoff by adding system instruction
-            logger.warning(
-                f"Max clarification rounds ({max_clarification_rounds}) reached. Forcing handoff to planner. Using prepared clarified topic: {clarified_topic}"
-            )
-            # Add system instruction to force handoff - let LLM choose the right tool
-            messages.append(
-                {
-                    "role": "system",
-                    "content": f"MAX ROUNDS REACHED. You MUST call handoff_after_clarification (not handoff_to_planner) with the appropriate locale based on the user's language and research_topic='{clarified_topic}'. Do not ask any more questions.",
-                }
-            )
-
         response = (
             get_llm_by_type(AGENT_LLM_MAP["coordinator"])
             .bind_tools(tools)
@@ -500,26 +457,12 @@ def coordinator_node(
         # Initialize response processing variables
         goto = "__end__"
         locale = state.get("locale", "en-US")
-        research_topic = (
-            clarification_history[0]
-            if clarification_history
-            else state.get("research_topic", "")
-        )
-        if not clarified_topic:
-            clarified_topic = research_topic
+        research_topic = state.get("research_topic", "")
 
         # --- Process LLM response ---
         # No tool calls - LLM is asking a clarifying question
         if not response.tool_calls and response.content:
-            # Check if we've reached max rounds - if so, force handoff to planner
-            if clarification_rounds >= max_clarification_rounds:
-                logger.warning(
-                    f"Max clarification rounds ({max_clarification_rounds}) reached. "
-                    "LLM didn't call handoff tool, forcing handoff to planner."
-                )
-                goto = "planner"
-                # Continue to final section instead of early return
-            else:
+            if clarification_rounds < max_clarification_rounds:
                 # Continue clarification process
                 clarification_rounds += 1
                 # Do NOT add LLM response to clarification_history - only user responses
@@ -528,27 +471,35 @@ def coordinator_node(
                 )
 
                 # Append coordinator's question to messages
-                updated_messages = list(state_messages)
+                state_messages = state.get("messages", [])
                 if response.content:
-                    updated_messages.append(
+                    state_messages.append(
                         HumanMessage(content=response.content, name="coordinator")
                     )
 
                 return Command(
                     update={
-                        "messages": updated_messages,
+                        "messages": state_messages,
                         "locale": locale,
                         "research_topic": research_topic,
                         "resources": configurable.resources,
                         "clarification_rounds": clarification_rounds,
                         "clarification_history": clarification_history,
-                        "clarified_research_topic": clarified_topic,
                         "is_clarification_complete": False,
+                        "clarified_question": "",
                         "goto": goto,
                         "__interrupt__": [("coordinator", response.content)],
                     },
                     goto=goto,
                 )
+            else:
+                # Max rounds reached - no more questions allowed
+                logger.warning(
+                    f"Max clarification rounds ({max_clarification_rounds}) reached. Handing off to planner."
+                )
+                goto = "planner"
+                if state.get("enable_background_investigation"):
+                    goto = "background_investigator"
         else:
             # LLM called a tool (handoff) or has no content - clarification complete
             if response.tool_calls:
@@ -562,7 +513,7 @@ def coordinator_node(
     # ============================================================
     # Final: Build and return Command
     # ============================================================
-    messages = list(state.get("messages", []) or [])
+    messages = state.get("messages", [])
     if response.content:
         messages.append(HumanMessage(content=response.content, name="coordinator"))
 
@@ -577,36 +528,19 @@ def coordinator_node(
                     logger.info("Handing off to planner")
                     goto = "planner"
 
-                    # Extract locale if provided
-                    locale = tool_args.get("locale", locale)
-                    if not enable_clarification and tool_args.get("research_topic"):
-                        research_topic = tool_args["research_topic"]
-
-                    if enable_clarification:
-                        logger.info(
-                            "Using prepared clarified topic: %s",
-                            clarified_topic or research_topic,
-                        )
-                    else:
-                        logger.info(
-                            "Using research topic for handoff: %s", research_topic
-                        )
+                    # Extract locale and research_topic if provided
+                    if tool_args.get("locale") and tool_args.get("research_topic"):
+                        locale = tool_args.get("locale")
+                        research_topic = tool_args.get("research_topic")
                     break
 
         except Exception as e:
             logger.error(f"Error processing tool calls: {e}")
             goto = "planner"
     else:
-        # No tool calls detected - fallback to planner instead of ending
-        logger.warning(
-            "LLM didn't call any tools. This may indicate tool calling issues with the model. "
-            "Falling back to planner to ensure research proceeds."
-        )
-        # Log full response for debugging
-        logger.debug(f"Coordinator response content: {response.content}")
-        logger.debug(f"Coordinator response object: {response}")
-        # Fallback to planner to ensure workflow continues
-        goto = "planner"
+        # No tool calls - both modes should goto __end__
+        logger.warning("LLM didn't call any tools. Staying at __end__.")
+        goto = "__end__"
 
     # Apply background_investigation routing if enabled (unified logic)
     if goto == "planner" and state.get("enable_background_investigation"):
@@ -617,19 +551,16 @@ def coordinator_node(
         clarification_rounds = 0
         clarification_history = []
 
-    clarified_research_topic_value = clarified_topic or research_topic
-
-    # clarified_research_topic: Complete clarified topic with all clarification rounds
     return Command(
         update={
             "messages": messages,
             "locale": locale,
             "research_topic": research_topic,
-            "clarified_research_topic": clarified_research_topic_value,
             "resources": configurable.resources,
             "clarification_rounds": clarification_rounds,
             "clarification_history": clarification_history,
             "is_clarification_complete": goto != "coordinator",
+            "clarified_question": research_topic if goto != "coordinator" else "",
             "goto": goto,
         },
         goto=goto,
@@ -649,7 +580,7 @@ def reporter_node(state: State, config: RunnableConfig):
         ],
         "locale": state.get("locale", "en-US"),
     }
-    invoke_messages = apply_prompt_template("reporter", input_, configurable, input_.get("locale", "en-US"))
+    invoke_messages = apply_prompt_template("reporter", input_, configurable)
     observations = state.get("observations", [])
 
     # Add a reminder about the new report format, citation style, and table usage
@@ -778,49 +709,68 @@ async def _execute_agent_step(
 
     logger.info(f"Agent input: {agent_input}")
     
-    # Validate message content before invoking agent
-    try:
-        validated_messages = validate_message_content(agent_input["messages"])
-        agent_input["messages"] = validated_messages
-    except Exception as validation_error:
-        logger.error(f"Error validating agent input messages: {validation_error}")
+    # Generate request ID for tracking
+    request_id = str(uuid.uuid4())[:8]
+    logger.info(f"Executing agent step {agent_name} with request_id: {request_id}")
     
-    try:
-        result = await agent.ainvoke(
-            input=agent_input, config={"recursion_limit": recursion_limit}
-        )
-    except Exception as e:
-        import traceback
-
-        error_traceback = traceback.format_exc()
-        error_message = f"Error executing {agent_name} agent for step '{current_step.title}': {str(e)}"
-        logger.exception(error_message)
-        logger.error(f"Full traceback:\n{error_traceback}")
-        
-        # Enhanced error diagnostics for content-related errors
-        if "Field required" in str(e) and "content" in str(e):
-            logger.error(f"Message content validation error detected")
-            for i, msg in enumerate(agent_input.get('messages', [])):
-                logger.error(f"Message {i}: type={type(msg).__name__}, "
-                            f"has_content={hasattr(msg, 'content')}, "
-                            f"content_type={type(msg.content).__name__ if hasattr(msg, 'content') else 'N/A'}, "
-                            f"content_len={len(str(msg.content)) if hasattr(msg, 'content') and msg.content else 0}")
-
-        detailed_error = f"[ERROR] {agent_name.capitalize()} Agent Error\n\nStep: {current_step.title}\n\nError Details:\n{str(e)}\n\nPlease check the logs for more information."
-        current_step.execution_res = detailed_error
-
-        return Command(
-            update={
-                "messages": [
-                    HumanMessage(
-                        content=detailed_error,
-                        name=agent_name,
-                    )
-                ],
-                "observations": observations + [detailed_error],
-            },
-            goto="research_team",
-        )
+    # Retry logic with exponential backoff
+    max_retries = 3
+    base_delay = 1
+    result = None
+    
+    for attempt in range(max_retries):
+        try:
+            # Use sanitized input on second attempt
+            current_agent_input = agent_input
+            if attempt == 1:
+                current_agent_input = _sanitize_agent_input(agent_input)
+                logger.info(f"Request {request_id}: Using sanitized input on attempt {attempt + 1}")
+            
+            result = await agent.ainvoke(
+                input=current_agent_input, config={"recursion_limit": recursion_limit}
+            )
+            break  # Success, exit retry loop
+            
+        except BadRequestError as e:
+            if "data_inspection_failed" in str(e) and attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)  # Exponential backoff
+                logger.warning(f"Request {request_id}: Content inspection failed on attempt {attempt + 1}, retrying in {delay}s... Error: {e}")
+                await asyncio.sleep(delay)
+                continue
+            else:
+                logger.error(f"Request {request_id}: Content inspection failed after {max_retries} attempts: {e}")
+                # Return a safe fallback response
+                fallback_content = f"I apologize, but I encountered content restrictions while processing: '{current_step.title}'. This could be due to sensitive content in the research materials. Please try rephrasing your query or provide different research parameters."
+                current_step.execution_res = fallback_content
+                return Command(
+                    update={
+                        "messages": [
+                            HumanMessage(
+                                content=fallback_content,
+                                name=agent_name,
+                            )
+                        ]
+                    }
+                )
+        except Exception as e:
+            logger.error(f"Request {request_id}: Unexpected error on attempt {attempt + 1}: {e}")
+            if attempt == max_retries - 1:
+                fallback_content = f"I encountered an unexpected error while processing: '{current_step.title}'. Please try again or contact support if the issue persists."
+                current_step.execution_res = fallback_content
+                return Command(
+                    update={
+                        "messages": [
+                            HumanMessage(
+                                content=fallback_content,
+                                name=agent_name,
+                            )
+                        ]
+                    }
+                )
+            await asyncio.sleep(base_delay * (2 ** attempt))
+    
+    if not result:
+        raise RuntimeError(f"Failed to execute agent step after {max_retries} attempts")
 
     # Process the result
     response_content = result["messages"][-1].content

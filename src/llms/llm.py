@@ -51,30 +51,39 @@ def _get_env_llm_conf(llm_type: str) -> Dict[str, Any]:
 
 def _create_llm_use_conf(llm_type: LLMType, conf: Dict[str, Any]) -> BaseChatModel:
     """Create LLM instance using configuration."""
-    llm_type_config_keys = _get_llm_type_config_keys()
-    config_key = llm_type_config_keys.get(llm_type)
+    from src.config.context import get_custom_basic_model, get_custom_reasoning_model
+    
+    # Check for custom model configurations first
+    custom_basic_model = get_custom_basic_model()
+    custom_reasoning_model = get_custom_reasoning_model()
+    
+    # Use custom configuration if available
+    if llm_type == "basic" and custom_basic_model:
+        merged_conf = custom_basic_model.copy()
+    elif llm_type == "reasoning" and custom_reasoning_model:
+        merged_conf = custom_reasoning_model.copy()
+    else:
+        llm_type_config_keys = _get_llm_type_config_keys()
+        config_key = llm_type_config_keys.get(llm_type)
 
-    if not config_key:
-        raise ValueError(f"Unknown LLM type: {llm_type}")
+        if not config_key:
+            raise ValueError(f"Unknown LLM type: {llm_type}")
 
-    llm_conf = conf.get(config_key, {})
-    if not isinstance(llm_conf, dict):
-        raise ValueError(f"Invalid LLM configuration for {llm_type}: {llm_conf}")
+        llm_conf = conf.get(config_key, {})
+        if not isinstance(llm_conf, dict):
+            raise ValueError(f"Invalid LLM configuration for {llm_type}: {llm_conf}")
 
-    # Get configuration from environment variables
-    env_conf = _get_env_llm_conf(llm_type)
+        # Get configuration from environment variables
+        env_conf = _get_env_llm_conf(llm_type)
 
-    # Merge configurations, with environment variables taking precedence
-    merged_conf = {**llm_conf, **env_conf}
+        # Merge configurations, with environment variables taking precedence
+        merged_conf = {**llm_conf, **env_conf}
 
     # Remove unnecessary parameters when initializing the client
     if "token_limit" in merged_conf:
         merged_conf.pop("token_limit")
 
-    if not merged_conf:
-        raise ValueError(f"No configuration found for LLM type: {llm_type}")
-
-    # Add max_retries to handle rate limit errors
+    # Add max_retries to handle rate limit errors if not present
     if "max_retries" not in merged_conf:
         merged_conf["max_retries"] = 3
 
@@ -122,7 +131,9 @@ def _create_llm_use_conf(llm_type: LLMType, conf: Dict[str, Any]) -> BaseChatMod
         return ChatDashscope(**merged_conf)
 
     if llm_type == "reasoning":
-        merged_conf["api_base"] = merged_conf.pop("base_url", None)
+        # Handle special case for reasoning model
+        if "base_url" in merged_conf:
+            merged_conf["api_base"] = merged_conf.pop("base_url")
         return ChatDeepSeek(**merged_conf)
     else:
         return ChatOpenAI(**merged_conf)

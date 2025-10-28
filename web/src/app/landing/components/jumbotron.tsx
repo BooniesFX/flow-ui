@@ -18,7 +18,7 @@ export function Jumbotron() {
   return (
     <section className="flex h-[95vh] w-full flex-col items-center justify-center pb-15">
       <FlickeringGrid
-        id="deer-hero-bg"
+        id="hero-bg"
         className={`absolute inset-0 z-0 [mask-image:radial-gradient(800px_circle_at_center,white,transparent)]`}
         squareSize={4}
         gridGap={4}
@@ -27,7 +27,7 @@ export function Jumbotron() {
         flickerChance={0.1}
       />
       <FlickeringGrid
-        id="deer-hero"
+        id="hero"
         className="absolute inset-0 z-0 translate-y-[2vh] mask-[url(/images/deer-hero.svg)] mask-size-[100vw] mask-center mask-no-repeat md:mask-size-[72vh]"
         squareSize={3}
         gridGap={6}
@@ -53,7 +53,7 @@ export function Jumbotron() {
               }
               href={
                 env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY
-                  ? "https://github.com/bytedance/deer-flow"
+                  ? "https://github.com/BooniesFX/flow-ui"
                   : "/chat"
               }
             >
@@ -68,7 +68,7 @@ export function Jumbotron() {
               asChild
             >
               <Link
-                href="https://github.com/bytedance/deer-flow"
+                href="https://github.com/BooniesFX/flow-ui"
                 target="_blank"
               >
                 <GithubFilled />

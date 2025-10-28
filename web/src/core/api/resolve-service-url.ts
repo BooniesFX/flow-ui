@@ -10,3 +10,13 @@ export function resolveServiceURL(path: string) {
   }
   return new URL(path, BASE_URL).toString();
 }
+
+// For accessing reports directory files directly (markdown content)
+export function resolveReportURL(reportId: string): string {
+  return `/api/report/${reportId}`;
+}
+
+// For accessing backend API
+export function resolveBackendURL(path: string): string {
+  return resolveServiceURL(path);
+}

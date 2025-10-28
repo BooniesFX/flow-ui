@@ -3,6 +3,7 @@
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+from typing import Optional
 
 from src.prompts.planner_model import StepType
 
@@ -72,7 +73,13 @@ def _build_base_graph():
     return builder
 
 
-def build_graph_with_memory():
+from typing import Optional
+
+def build_graph_with_memory(
+    basic_model: Optional[dict] = None,
+    reasoning_model: Optional[dict] = None,
+    search_engine: Optional[dict] = None,
+):
     """Build and return the agent workflow graph with memory."""
     # use persistent memory to save conversation history
     # TODO: be compatible with SQLite / PostgreSQL

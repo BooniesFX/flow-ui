@@ -43,6 +43,24 @@ const generalFormSchema = z.object({
   enableBackgroundInvestigation: z.boolean(),
   enableDeepThinking: z.boolean(),
   reportStyle: z.enum(["academic", "popular_science", "news", "social_media","strategic_investment"]),
+  // Model settings
+  basicModel: z.object({
+    baseUrl: z.string().url().min(1, "Base URL is required"),
+    model: z.string().min(1, "Model name is required"),
+    apiKey: z.string(),
+  }),
+  reasoningModel: z.object({
+    baseUrl: z.string().url().min(1, "Base URL is required"),
+    model: z.string().min(1, "Model name is required"),
+    apiKey: z.string(),
+  }),
+  // Search engine settings
+  searchEngine: z.object({
+    engine: z.string().min(1, "Search engine is required"),
+    apiKey: z.string(),
+    includeImages: z.boolean(),
+    minScoreThreshold: z.number().min(0).max(1, "Min score threshold must be between 0 and 1"),
+  }),
 });
 
 export const GeneralTab: Tab = ({
@@ -222,6 +240,214 @@ export const GeneralTab: Tab = ({
                 </FormItem>
               )}
             />
+            {/* Basic Model Settings */}
+            <div className="rounded-lg border p-4">
+              <h2 className="text-md font-medium mb-4">{t("basicModel.title")}</h2>
+              <FormField
+                control={form.control}
+                name="basicModel.baseUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("basicModel.baseUrl")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        placeholder="https://api.openai.com/v1"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="basicModel.model"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("basicModel.model")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        placeholder="gpt-4"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="basicModel.apiKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("basicModel.apiKey")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        type="password"
+                        placeholder="sk-..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t("basicModel.apiKeyDescription")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            {/* Reasoning Model Settings */}
+            <div className="rounded-lg border p-4">
+              <h2 className="text-md font-medium mb-4">{t("reasoningModel.title")}</h2>
+              <FormField
+                control={form.control}
+                name="reasoningModel.baseUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("reasoningModel.baseUrl")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        placeholder="https://api.openai.com/v1"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reasoningModel.model"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("reasoningModel.model")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        placeholder="gpt-4"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reasoningModel.apiKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("reasoningModel.apiKey")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        type="password"
+                        placeholder="sk-..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t("reasoningModel.apiKeyDescription")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            {/* Search Engine Settings */}
+            <div className="rounded-lg border p-4">
+              <h2 className="text-md font-medium mb-4">{t("searchEngine.title")}</h2>
+              <FormField
+                control={form.control}
+                name="searchEngine.engine"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("searchEngine.engine")}</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t("searchEngine.selectEngine")} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="tavily">Tavily</SelectItem>
+                        <SelectItem value="duckduckgo">DuckDuckGo</SelectItem>
+                        <SelectItem value="brave">Brave Search</SelectItem>
+                        <SelectItem value="arxiv">ArXiv</SelectItem>
+                        <SelectItem value="searx">SearX</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="searchEngine.apiKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("searchEngine.apiKey")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        type="password"
+                        placeholder="tvly-..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t("searchEngine.apiKeyDescription")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="searchEngine.includeImages"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormLabel>{t("searchEngine.includeImages")}</FormLabel>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="searchEngine.minScoreThreshold"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("searchEngine.minScoreThreshold")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        type="number"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t("searchEngine.minScoreThresholdDescription")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </form>
         </Form>
       </main>

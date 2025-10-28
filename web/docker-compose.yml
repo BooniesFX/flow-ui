@@ -1,11 +1,11 @@
 services:
-  deer-flow-web:
+  open-deep-research-platform-web:
     build:
       context: .
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-    image: deer-flow-web
+    image: open-deep-research-platform-web
     ports:
       - "3000:3000"
     env_file:

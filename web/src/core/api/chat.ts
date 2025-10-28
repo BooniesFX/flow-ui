@@ -36,6 +36,24 @@ export async function* chatStream(
         }
       >;
     };
+    // Model settings
+    basic_model?: {
+      baseUrl: string;
+      model: string;
+      apiKey: string;
+    };
+    reasoning_model?: {
+      baseUrl: string;
+      model: string;
+      apiKey: string;
+    };
+    // Search engine settings
+    search_engine?: {
+      engine: string;
+      apiKey: string;
+      includeImages: boolean;
+      minScoreThreshold: number;
+    };
   },
   options: { abortSignal?: AbortSignal } = {},
 ) {

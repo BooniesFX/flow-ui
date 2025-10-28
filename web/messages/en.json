@@ -16,21 +16,23 @@
     "placeholderWithRag": "What can I do for you? \nYou may refer to RAG resources by using @."
   },
   "header": {
-    "title": "DeerFlow"
+    "title": "Open Deep Research Platform"
   },
   "hero": {
     "title": "Deep Research",
     "subtitle": "at Your Fingertips",
-    "description": "Meet DeerFlow, your personal Deep Research assistant. With powerful tools like search engines, web crawlers, Python and MCP services, it delivers instant insights, comprehensive reports, and even captivating podcasts.",
-    "footnote": "* DEER stands for Deep Exploration and Efficient Research."
+    "description": "Meet the Open Deep Research Platform, your personal Deep Research assistant. With powerful tools like search engines, web crawlers, Python and MCP services, it delivers instant insights, comprehensive reports, and even captivating podcasts.",
+    "footnote": "* Open Deep Research Platform - Focused on deep research and analysis"
   },
   "settings": {
-    "title": "DeerFlow Settings",
-    "description": "Manage your DeerFlow settings here.",
-    "addServers": "Add Servers",
+    "title": "Platform Settings",
+    "description": "Manage your platform settings here.",
     "cancel": "Cancel",
+    "save": "Save",
+    "theme": "Theme",
+    "addServers": "Add Servers",
     "addNewMCPServers": "Add New MCP Servers",
-    "mcpConfigDescription": "DeerFlow uses the standard JSON MCP config to create a new server.",
+    "mcpConfigDescription": "Platform uses the standard JSON MCP config to create a new server.",
     "pasteConfigBelow": "Paste your config below and click \"Add\" to add new servers.",
     "add": "Add",
     "general": {
@@ -44,11 +46,35 @@
       "maxStepsOfPlan": "Max steps of a research plan",
       "maxStepsDescription": "By default, each research plan has 3 steps.",
       "maxSearchResults": "Max search results",
-      "maxSearchResultsDescription": "By default, each search step has 3 results."
+      "maxSearchResultsDescription": "By default, each search step has 3 results.",
+      "basicModel": {
+        "title": "Basic Model Settings",
+        "baseUrl": "API Base URL",
+        "model": "Model Name",
+        "apiKey": "API Key",
+        "apiKeyDescription": "Your API key will be stored only in browser local storage and will not be sent to the server"
+      },
+      "reasoningModel": {
+        "title": "Reasoning Model Settings",
+        "baseUrl": "API Base URL",
+        "model": "Model Name",
+        "apiKey": "API Key",
+        "apiKeyDescription": "Your API key will be stored only in browser local storage and will not be sent to the server"
+      },
+      "searchEngine": {
+        "title": "Search Engine Settings",
+        "engine": "Search Engine",
+        "selectEngine": "Select Search Engine",
+        "apiKey": "API Key",
+        "apiKeyDescription": "Your API key will be stored only in browser local storage and will not be sent to the server",
+        "includeImages": "Include Image Results",
+        "minScoreThreshold": "Min Score Threshold",
+        "minScoreThresholdDescription": "Minimum relevance score for filtering search results (between 0-1)"
+      }
     },
     "mcp": {
       "title": "MCP Servers",
-      "description": "The Model Context Protocol boosts DeerFlow by integrating external tools for tasks like private domain searches, web browsing, food ordering, and more. Click here to",
+      "description": "The Model Context Protocol boosts the platform by integrating external tools for tasks like private domain searches, web browsing, food ordering, and more. Click here to",
       "learnMore": "learn more about MCP.",
       "enableDisable": "Enable/disable server",
       "deleteServer": "Delete server",
@@ -59,6 +85,7 @@
       "title": "About"
     },
     "reportStyle": {
+      "title": "Report Style",
       "writingStyle": "Writing Style",
       "chooseTitle": "Choose Writing Style",
       "chooseDesc": "Select the writing style for your research reports. Different styles are optimized for different audiences and purposes.",
@@ -77,17 +104,17 @@
   "footer": {
     "quote": "Originated from Open Source, give back to Open Source.",
     "license": "Licensed under MIT License",
-    "copyright": "DeerFlow"
+    "copyright": "Open Deep Research Platform"
   },
   "chat": {
     "page": {
-        "loading": "Loading DeerFlow...",
+        "loading": "Loading Platform...",
         "welcomeUser": "Welcome, {username}",
-        "starOnGitHub": "Star DeerFlow on GitHub"
+        "starOnGitHub": "Star Platform on GitHub"
     },
     "welcome": {
       "greeting": "👋 Hello, there!",
-      "description": "Welcome to 🦌 DeerFlow, a deep research assistant built on cutting-edge language models, helps you search on web, browse information, and handle complex tasks."
+      "description": "Welcome to the Open Deep Research Platform, a deep research assistant built on cutting-edge language models, helps you search on web, browse information, and handle complex tasks."
     },
     "conversationStarters": [
       "How many times taller is the Eiffel Tower than the tallest building in the world?",
@@ -99,12 +126,12 @@
       "deepThinking": "Deep Thinking",
       "deepThinkingTooltip": {
         "title": "Deep Thinking Mode: {status}",
-        "description": "When enabled, DeerFlow will use reasoning model ({model}) to generate more thoughtful plans."
+        "description": "When enabled, platform will use reasoning model ({model}) to generate more thoughtful plans."
       },
       "investigation": "Investigation",
       "investigationTooltip": {
         "title": "Investigation Mode: {status}",
-        "description": "When enabled, DeerFlow will perform a quick search before planning. This is useful for researches related to ongoing events and news."
+        "description": "When enabled, platform will perform a quick search before planning. This is useful for researches related to ongoing events and news."
       },
       "enhancePrompt": "Enhance prompt with AI",
       "on": "On",
@@ -140,9 +167,9 @@
     },
     "messages": {
       "replaying": "Replaying",
-      "replayDescription": "DeerFlow is now replaying the conversation...",
+      "replayDescription": "The platform is now replaying the conversation...",
       "replayHasStopped": "The replay has been stopped.",
-      "replayModeDescription": "You're now in DeerFlow's replay mode. Click the \"Play\" button on the right to start.",
+      "replayModeDescription": "You're now in the platform's replay mode. Click the \"Play\" button on the right to start.",
       "play": "Play",
       "fastForward": "Fast Forward",
       "demoNotice": "* This site is for demo purposes only. If you want to try your own question, please",
@@ -159,7 +186,7 @@
   "landing": {
     "caseStudies": {
       "title": "Case Studies",
-      "description": "See DeerFlow in action through replays.",
+      "description": "See the platform in action through replays.",
       "clickToWatch": "Click to watch replay",
       "cases": [
         {
@@ -196,9 +223,16 @@
         }
       ]
     },
+    "latestReporters": {
+      "title": "Latest Reports",
+      "description": "View the most recently generated research reports from the platform.",
+      "clickToView": "Click to view report",
+      "noReporters": "No previous reports found",
+      "startResearch": "Start a new research to generate reports"
+    },
     "coreFeatures": {
       "title": "Core Features",
-      "description": "Find out what makes DeerFlow effective.",
+      "description": "Find out what makes the platform effective.",
       "features": [
         {
           "name": "Dive Deeper and Reach Wider",
@@ -227,8 +261,8 @@
       "description": "Experience the agent teamwork with our Supervisor + Handoffs design pattern."
     },
     "joinCommunity": {
-      "title": "Join the DeerFlow Community",
-      "description": "Contribute brilliant ideas to shape the future of DeerFlow. Collaborate, innovate, and make impacts.",
+      "title": "Join the Community",
+      "description": "Contribute brilliant ideas to shape the future of the platform. Collaborate, innovate, and make impacts.",
       "contributeNow": "Contribute Now"
     }
   }

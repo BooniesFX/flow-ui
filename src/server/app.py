@@ -6,8 +6,10 @@ import base64
 import json
 import logging
 import os
-from typing import Annotated, Any, List, cast
+import glob
+from typing import Annotated, Any, List, Optional, cast
 from uuid import uuid4
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -122,6 +124,9 @@ async def chat_stream(request: ChatRequest):
             request.enable_deep_thinking,
             request.enable_clarification,
             request.max_clarification_rounds,
+            request.basic_model,
+            request.reasoning_model,
+            request.search_engine,
         ),
         media_type="text/event-stream",
     )
@@ -299,44 +304,96 @@ async def _astream_workflow_generator(
     enable_deep_thinking: bool,
     enable_clarification: bool,
     max_clarification_rounds: int,
+    basic_model: Optional[dict] = None,
+    reasoning_model: Optional[dict] = None,
+    search_engine: Optional[dict] = None,
 ):
-    # Process initial messages
-    for message in messages:
-        if isinstance(message, dict) and "content" in message:
-            _process_initial_messages(message, thread_id)
+    from src.config.context import set_custom_models, clear_custom_models
+    
+    # Set custom model configurations in context
+    set_custom_models(basic_model, reasoning_model, search_engine)
+    
+    try:
+        # Process initial messages
+        for message in messages:
+            if isinstance(message, dict) and "content" in message:
+                _process_initial_messages(message, thread_id)
 
-    # Prepare workflow input
-    workflow_input = {
-        "messages": messages,
-        "plan_iterations": 0,
-        "final_report": "",
-        "current_plan": None,
-        "observations": [],
-        "auto_accepted_plan": auto_accepted_plan,
-        "enable_background_investigation": enable_background_investigation,
-        "research_topic": messages[-1]["content"] if messages else "",
-        "enable_clarification": enable_clarification,
-        "max_clarification_rounds": max_clarification_rounds,
-    }
+        # Prepare workflow input
+        workflow_input = {
+            "messages": messages,
+            "plan_iterations": 0,
+            "final_report": "",
+            "current_plan": None,
+            "observations": [],
+            "auto_accepted_plan": auto_accepted_plan,
+            "enable_background_investigation": enable_background_investigation,
+            "research_topic": messages[-1]["content"] if messages else "",
+            "enable_clarification": enable_clarification,
+            "max_clarification_rounds": max_clarification_rounds,
+        }
 
-    if not auto_accepted_plan and interrupt_feedback:
-        resume_msg = f"[{interrupt_feedback}]"
-        if messages:
-            resume_msg += f" {messages[-1]['content']}"
-        workflow_input = Command(resume=resume_msg)
+        if not auto_accepted_plan and interrupt_feedback:
+            resume_msg = f"[{interrupt_feedback}]"
+            if messages:
+                resume_msg += f" {messages[-1]['content']}"
+            workflow_input = Command(resume=resume_msg)
 
-    # Prepare workflow config
-    workflow_config = {
-        "thread_id": thread_id,
-        "resources": resources,
-        "max_plan_iterations": max_plan_iterations,
-        "max_step_num": max_step_num,
-        "max_search_results": max_search_results,
-        "mcp_settings": mcp_settings,
-        "report_style": report_style.value,
-        "enable_deep_thinking": enable_deep_thinking,
-        "recursion_limit": get_recursion_limit(),
-    }
+        # Prepare workflow config
+        workflow_config = {
+            "thread_id": thread_id,
+            "resources": resources,
+            "max_plan_iterations": max_plan_iterations,
+            "max_step_num": max_step_num,
+            "max_search_results": max_search_results,
+            "mcp_settings": mcp_settings,
+            "report_style": report_style.value,
+            "enable_deep_thinking": enable_deep_thinking,
+            "recursion_limit": get_recursion_limit(),
+        }
+
+        checkpoint_saver = get_bool_env("LANGGRAPH_CHECKPOINT_SAVER", False)
+        checkpoint_url = get_str_env("LANGGRAPH_CHECKPOINT_DB_URL", "")
+        # Handle checkpointer if configured
+        connection_kwargs = {
+            "autocommit": True,
+            "row_factory": "dict_row",
+            "prepare_threshold": 0,
+        }
+        if checkpoint_saver and checkpoint_url != "":
+            if checkpoint_url.startswith("postgresql://"):
+                logger.info("start async postgres checkpointer.")
+                async with AsyncConnectionPool(
+                    checkpoint_url, kwargs=connection_kwargs
+                ) as conn:
+                    checkpointer = AsyncPostgresSaver(conn)
+                    await checkpointer.setup()
+                    graph.checkpointer = checkpointer
+                    graph.store = in_memory_store
+                    async for event in _stream_graph_events(
+                        graph, workflow_input, workflow_config, thread_id
+                    ):
+                        yield event
+            if checkpoint_url.startswith("mongodb://"):
+                logger.info("start async mongodb checkpointer.")
+                async with AsyncMongoDBSaver.from_conn_string(
+                    checkpoint_url
+                ) as checkpointer:
+                    graph.checkpointer = checkpointer
+                    graph.store = in_memory_store
+                    async for event in _stream_graph_events(
+                        graph, workflow_input, workflow_config, thread_id
+                    ):
+                        yield event
+        else:
+            # Use graph without MongoDB checkpointer
+            async for event in _stream_graph_events(
+                graph, workflow_input, workflow_config, thread_id
+            ):
+                yield event
+    finally:
+        # Clear custom model configurations
+        clear_custom_models()
 
     checkpoint_saver = get_bool_env("LANGGRAPH_CHECKPOINT_SAVER", False)
     checkpoint_url = get_str_env("LANGGRAPH_CHECKPOINT_DB_URL", "")
@@ -624,3 +681,135 @@ async def config():
         rag=RAGConfigResponse(provider=SELECTED_RAG_PROVIDER),
         models=get_configured_llm_models(),
     )
+
+
+@app.get("/api/reporters")
+async def get_latest_reporters():
+    """Get latest generated reporters for homepage display."""
+    try:
+        # Read reports from local reports directory
+        reports_dir = Path("reports")
+        
+        if not reports_dir.exists():
+            logger.info("Reports directory does not exist")
+            return {"reporters": []}
+        
+        # Find all markdown files in reports directory
+        report_files = glob.glob("reports/*.md")
+        reporters = []
+        
+        for report_file in sorted(report_files, key=os.path.getmtime, reverse=True):
+            try:
+                with open(report_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Extract title (first # heading) and description (first paragraph)
+                lines = content.split('\n')
+                title = "未命名报告"
+                description = ""
+                
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith('# ') and title == "未命名报告":
+                        title = line[2:].strip()
+                    elif line and not line.startswith('#') and description == "":
+                        # Get first non-empty, non-heading line as description
+                        description = line[:200] + "..." if len(line) > 200 else line
+                        break
+                
+                # Generate ID from filename
+                report_id = Path(report_file).stem
+                
+                # Get creation time
+                creation_time = os.path.getmtime(report_file)
+                import datetime
+                created_at = datetime.datetime.fromtimestamp(creation_time).isoformat() + "Z"
+                
+                reporters.append({
+                    "id": report_id,
+                    "title": title,
+                    "description": description,
+                    "createdAt": created_at
+                })
+                
+            except Exception as e:
+                logger.warning(f"Error processing report file {report_file}: {str(e)}")
+                continue
+        
+        logger.info(f"Found {len(reporters)} reports in local directory")
+        return {"reporters": reporters}
+        
+    except Exception as e:
+        logger.exception(f"Error fetching reporters: {str(e)}")
+        return {"reporters": []}
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """Get user settings configuration."""
+    # Return default settings without persistent storage
+    return {
+        "config": {
+            "general": {
+                "language": "zh",
+                "theme": "light", 
+                "autoAcceptPlan": False,
+                "enableClarification": True,
+                "maxClarificationRounds": 3,
+                "maxPlanIterations": 2,
+                "maxStepsOfPlan": 3,
+                "maxSearchResults": 3,
+            },
+            "mcp": {
+                "servers": []
+            },
+            "reportStyle": {
+                "writingStyle": "popularScience"
+            }
+        }
+    }
+
+
+@app.post("/api/settings")
+async def save_settings(settings_data: dict):
+    """Save user settings configuration."""
+    try:
+        # Just log the settings without persistent storage
+        # User will configure settings each time they use the system
+        logger.info(f"User settings received: {settings_data}")
+        
+        return {"success": True, "config": settings_data}
+    except Exception as e:
+        logger.exception(f"Error saving settings: {str(e)}")
+        return {"success": False, "error": "Failed to save settings"}
+
+
+@app.get("/api/report/{report_id}")
+async def get_report_content(report_id: str):
+    """Get the full content of a specific report for replay."""
+    try:
+        # Construct file path
+        report_file = Path("reports") / f"{report_id}.md"
+        
+        # Check if file exists
+        if not report_file.exists():
+            raise HTTPException(status_code=404, detail=f"Report with id '{report_id}' not found")
+        
+        # Read file content
+        with open(report_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Return the content as plain text/markdown
+        return Response(
+            content=content,
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": f"inline; filename={report_id}.md"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error reading report {report_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to read report")

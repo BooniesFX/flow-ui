@@ -1,5 +1,5 @@
 {
-  "name": "deer-flow-web",
+  "name": "open-deep-research-platform-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -84,6 +84,7 @@
     "unist-util-visit": "^5.0.0",
     "use-debounce": "^10.0.4",
     "use-stick-to-bottom": "^1.1.0",
+    "yaml": "^2.8.1",
     "zod": "^3.24.3",
     "zustand": "^5.0.3"
   },

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import { StarFilledIcon, GitHubLogoIcon } from "@radix-ui/react-icons";
+import { GearIcon } from "@radix-ui/react-icons";
 import Link from "next/link";
 import { useTranslations } from 'next-intl';
 
@@ -18,9 +19,10 @@ export function SiteHeader() {
       <div className="container flex h-15 items-center justify-between px-3">
         <div className="text-xl font-medium">
           <span className="mr-1 text-2xl">🦌</span>
-          <span>DeerFlow</span>
+          <span>开放深度研究平台</span>
         </div>
         <div className="relative flex items-center gap-2">
+          {/* Settings button removed - settings should be in research page only */}
           <LanguageSwitcher />
           <div
             className="pointer-events-none absolute inset-0 z-0 h-full w-full rounded-full opacity-60 blur-2xl"
@@ -35,7 +37,7 @@ export function SiteHeader() {
             asChild
             className="group relative z-10"
           >
-            <Link href="https://github.com/bytedance/deer-flow" target="_blank">
+            <Link href="https://github.com/BooniesFX/flow-ui" target="_blank">
               <GitHubLogoIcon className="size-4" />
               {t('starOnGitHub')}
               {env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY &&
@@ -54,7 +56,7 @@ export async function StarCounter() {
 
   try {
     const response = await fetch(
-      "https://api.github.com/repos/bytedance/deer-flow",
+      "https://api.github.com/repos/BooniesFX/flow-ui",
       {
         headers: env.GITHUB_OAUTH_TOKEN
           ? {

@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 import { ScrollContainer } from "~/components/deer-flow/scroll-container";
-import { Tooltip } from "~/components/deer-flow/tooltip";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -17,6 +16,7 @@ import { cn } from "~/lib/utils";
 import { ResearchActivitiesBlock } from "./research-activities-block";
 import { ResearchReportBlock } from "./research-report-block";
 import { ResearchVisualization } from "./visualization/research-visualization";
+import { ResearchSettingsDialog } from "./research-settings-dialog";
 
 export function ResearchBlock({
   className,
@@ -155,6 +155,7 @@ export function ResearchBlock({
               </Tooltip>
             </>
           )}
+          <ResearchSettingsDialog />
           <Tooltip title={t("close")}>
             <Button
               className="text-gray-400"

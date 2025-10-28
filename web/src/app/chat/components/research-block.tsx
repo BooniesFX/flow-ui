@@ -9,6 +9,7 @@ import { ScrollContainer } from "~/components/deer-flow/scroll-container";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "~/components/ui/tooltip";
 import { useReplay } from "~/core/replay";
 import { closeResearch, listenToPodcast, useStore } from "~/core/store";
 import { cn } from "~/lib/utils";
@@ -106,8 +107,9 @@ export function ResearchBlock({
   }, [hasReport, researchId]);
 
   return (
-    <div className={cn("h-full w-full", className)}>
-      <Card className={cn("relative h-full w-full pt-4", className)}>
+    <TooltipProvider>
+      <div className={cn("h-full w-full", className)}>
+        <Card className={cn("relative h-full w-full pt-4", className)}>
         <div className="absolute right-4 flex h-9 items-center justify-center">
           {hasReport && !reportStreaming && (
             <>
@@ -248,5 +250,6 @@ export function ResearchBlock({
         </Tabs>
       </Card>
     </div>
+    </TooltipProvider>
   );
 }

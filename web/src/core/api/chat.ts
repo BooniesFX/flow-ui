@@ -121,12 +121,13 @@ async function* chatReplayStream(
   } else {
     const replayId = extractReplayIdFromSearchParams(window.location.search);
     if (replayId) {
-      replayFilePath = `/replay/${replayId}.txt`;
+      replayFilePath = `${resolveServiceURL("report")}/${replayId}`;
     } else {
-      // Fallback to a default replay
-      replayFilePath = `/replay/eiffel-tower-vs-tallest-building.txt`;
+      // Fallback to a default replay - use a working mock file or API call
+      replayFilePath = "/mock/first-plan.txt";
     }
   }
+  // For replay mode, always use the backend API
   const text = await fetchReplay(replayFilePath, {
     abortSignal: options.abortSignal,
   });

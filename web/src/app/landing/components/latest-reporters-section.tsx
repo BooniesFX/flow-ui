@@ -27,7 +27,7 @@ export function LatestReportersSection() {
     const fetchReporters = async () => {
       try {
         // Use backend API instead of frontend API route
-        const response = await fetch('/api/reporters');
+        const response = await fetch('http://localhost:8000/api/reporters');
         const data = await response.json();
         
         if (response.ok) {

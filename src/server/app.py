@@ -802,10 +802,7 @@ async def get_report_content(report_id: str):
         # Return the content as plain text/markdown
         return Response(
             content=content,
-            media_type="text/markdown",
-            headers={
-                "Content-Disposition": f"inline; filename={report_id}.md"
-            }
+            media_type="text/markdown"
         )
         
     except HTTPException:

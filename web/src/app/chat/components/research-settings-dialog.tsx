@@ -5,6 +5,7 @@ import { Settings } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Tooltip } from "~/components/deer-flow/tooltip";
-// Settings import removed - use API calls instead of store
+import { useSettingsStore } from "~/core/store/settings-store";
 
 export function ResearchSettingsDialog() {
   const t = useTranslations("settings");
@@ -58,19 +59,15 @@ export function ResearchSettingsDialog() {
             <div className="space-y-2">
               <div>
                 <label className="text-sm font-medium">{tGeneral("basicModel.baseUrl")}</label>
-                <Input
-  value={currentSettings.general.basicModel.baseUrl}
-  onChange={(e) => setBasicModelBaseUrl(e.target.value)}
-  className="mt-1"
-/>
+                <div className="mt-1 p-2 border rounded-md bg-muted text-sm">
+                  {currentSettings.general?.basicModel?.baseUrl || "Not configured"}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium">{tGeneral("basicModel.model")}</label>
-                <Input
-  value={currentSettings.general.basicModel.model}
-  onChange={(e) => setBasicModelName(e.target.value)}
-  className="mt-1"
-/>
+                <div className="mt-1 p-2 border rounded-md bg-muted text-sm">
+                  {currentSettings.general?.basicModel?.model || "Not configured"}
+                </div>
               </div>
             </div>
           </div>
@@ -81,19 +78,15 @@ export function ResearchSettingsDialog() {
             <div className="space-y-2">
               <div>
                 <label className="text-sm font-medium">{tGeneral("reasoningModel.baseUrl")}</label>
-                <Input
-  value={currentSettings.general.reasoningModel.baseUrl}
-  onChange={(e) => setReasoningModelBaseUrl(e.target.value)}
-  className="mt-1"
-/>
+                <div className="mt-1 p-2 border rounded-md bg-muted text-sm">
+                  {currentSettings.general?.reasoningModel?.baseUrl || "Not configured"}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium">{tGeneral("reasoningModel.model")}</label>
-                <Input
-  value={currentSettings.general.reasoningModel.model}
-  onChange={(e) => setReasoningModelName(e.target.value)}
-  className="mt-1"
-/>
+                <div className="mt-1 p-2 border rounded-md bg-muted text-sm">
+                  {currentSettings.general?.reasoningModel?.model || "Not configured"}
+                </div>
               </div>
             </div>
           </div>

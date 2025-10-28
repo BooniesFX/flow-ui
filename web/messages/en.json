@@ -163,7 +163,8 @@
       "nowPlayingPodcast": "Now playing podcast...",
       "podcast": "Podcast",
       "errorGeneratingPodcast": "Error when generating podcast. Please try again.",
-      "downloadPodcast": "Download podcast"
+      "downloadPodcast": "Download podcast",
+      "settings": "Settings"
     },
     "messages": {
       "replaying": "Replaying",

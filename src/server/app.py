@@ -744,6 +744,65 @@ async def get_latest_reporters():
         return {"reporters": []}
 
 
+@app.get("/api/reporters/{report_id}")
+async def get_reporter_detail(report_id: str):
+    """Get detailed information about a specific report."""
+    try:
+        # Read report from local reports directory
+        report_file = Path(f"reports/{report_id}.md")
+        
+        if not report_file.exists():
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        with open(report_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Extract title (first # heading) and description (first paragraph)
+        lines = content.split('\n')
+        title = "未命名报告"
+        description = ""
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith('# ') and title == "未命名报告":
+                title = line[2:].strip()
+            elif line and not line.startswith('#') and description == "":
+                # Get first non-empty, non-heading line as description
+                description = line[:200] + "..." if len(line) > 200 else line
+                break
+        
+        # Get creation and modification times
+        creation_time = os.path.getmtime(report_file)
+        modification_time = os.path.getmtime(report_file)
+        import datetime
+        created_at = datetime.datetime.fromtimestamp(creation_time).isoformat() + "Z"
+        updated_at = datetime.datetime.fromtimestamp(modification_time).isoformat() + "Z"
+        
+        # TODO: Extract sources and images from content in the future
+        # For now, return empty arrays
+        metadata = {
+            "style": "research",
+            "sources": [],
+            "images": []
+        }
+        
+        return {
+            "id": report_id,
+            "title": title,
+            "description": description,
+            "content": content,
+            "createdAt": created_at,
+            "updatedAt": updated_at,
+            "metadata": metadata
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error fetching reporter detail: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch report")
+
+
 @app.get("/api/settings")
 async def get_settings():
     """Get user settings configuration."""

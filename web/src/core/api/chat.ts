@@ -120,23 +120,40 @@ async function* chatReplayStream(
     fastForwardReplaying = true;
   } else {
     const replayId = extractReplayIdFromSearchParams(window.location.search);
-    if (replayId) {
-      replayFilePath = `${resolveServiceURL("report")}/${replayId}`;
+    if (replayId && isValidReplayId(replayId)) {
+      // For replay mode, only use files from /replay directory, not the report API
+      replayFilePath = `/replay/${replayId}.txt`;
     } else {
-      // Fallback to a default replay - use a working mock file or API call
+      // Fallback to a default replay - use a working mock file
       replayFilePath = "/mock/first-plan.txt";
     }
   }
-  // For replay mode, always use the backend API
+  
   const text = await fetchReplay(replayFilePath, {
     abortSignal: options.abortSignal,
   });
+  
+  // Handle stream format (existing logic for mock files)
   const normalizedText = text.replace(/\r\n/g, "\n");
   const chunks = normalizedText.split("\n\n");
   for (const chunk of chunks) {
-    const [eventRaw, dataRaw] = chunk.split("\n") as [string, string];
-    const [, event] = eventRaw.split("event: ", 2) as [string, string];
-    const [, data] = dataRaw.split("data: ", 2) as [string, string];
+    // Skip empty chunks
+    if (!chunk.trim()) continue;
+    
+    const lines = chunk.split("\n");
+    let event = "";
+    let data = "";
+    
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        event = line.substring(7);
+      } else if (line.startsWith("data: ")) {
+        data = line.substring(6);
+      }
+    }
+
+    // Skip chunks without event or data
+    if (!event || !data) continue;
 
     try {
       const chatEvent = {
@@ -165,6 +182,28 @@ async function* chatReplayStream(
 }
 
 const replayCache = new Map<string, string>();
+
+// List of valid replay IDs from /public/replay directory with their titles
+const REPLAY_DATA = {
+  "ai-twin-insurance": "Would you insure your AI twin?",
+  "china-food-delivery": "How do you view the takeaway war in China?",
+  "eiffel-tower-vs-tallest-building": "How tall is Eiffel Tower compared to tallest building?",
+  "github-top-trending-repo": "What are the top trending repositories on GitHub?",
+  "nanjing-traditional-dishes": "Write an article about Nanjing's traditional dishes",
+  "rag": "RAG demonstration",
+  "rental-apartment-decoration": "How to decorate a small rental apartment?",
+  "review-of-the-professional": "Introduce the movie 'Léon: The Professional'",
+  "ultra-processed-foods": "Are ultra-processed foods linked to health?"
+};
+
+function isValidReplayId(replayId: string): boolean {
+  return replayId in REPLAY_DATA;
+}
+
+function getReplayTitle(replayId: string): string {
+  return REPLAY_DATA[replayId as keyof typeof REPLAY_DATA] || "Unknown Replay";
+}
+
 export async function fetchReplay(
   url: string,
   options: { abortSignal?: AbortSignal } = {},
@@ -184,22 +223,15 @@ export async function fetchReplay(
 }
 
 export async function fetchReplayTitle() {
-  const res = chatReplayStream(
-    "",
-    {
-      thread_id: "__mock__",
-      auto_accepted_plan: false,
-      max_plan_iterations: 3,
-      max_step_num: 1,
-      max_search_results: 3,
-    },
-    {},
-  );
-  for await (const event of res) {
-    if (event.type === "message_chunk") {
-      return event.data.content;
-    }
+  const replayId = extractReplayIdFromSearchParams(window.location.search);
+  
+  if (replayId && isValidReplayId(replayId)) {
+    // Use the predefined title from the mapping table
+    return getReplayTitle(replayId);
   }
+  
+  // If no replayId or error occurred, throw to trigger error handling
+  throw new Error('No replay ID found');
 }
 
 export async function sleepInReplay(ms: number) {

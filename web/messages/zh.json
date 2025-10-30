@@ -184,6 +184,26 @@
       "toggleFullscreen": "切换全屏"
     }
   },
+  "report": {
+    "title": "研究报告",
+    "description": "查看和探索详细的研究报告",
+    "backToResearch": "返回研究",
+    "download": "下载",
+    "playPodcast": "播放播客",
+    "pause": "暂停",
+    "generating": "生成中...",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "content": "内容",
+    "sources": "来源",
+    "media": "媒体",
+    "reportContent": "报告内容",
+    "reportContentDescription": "研究报告的完整内容",
+    "sourcesDescription": "本报告中使用的来源和参考资料",
+    "mediaDescription": "与本报告相关的图片和媒体内容",
+    "noSources": "此报告没有可用的来源",
+    "noMedia": "此报告没有可用的媒体内容"
+  },
   "landing": {
     "caseStudies": {
       "title": "案例研究",

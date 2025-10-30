@@ -1,19 +1,13 @@
 // Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 // SPDX-License-Identifier: MIT
 
-import { NextRequest, NextResponse } from "next/server";
-
-interface Reporter {
-  id: string;
-  title: string;
-  description: string;
-  createdAt: string;
-}
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
     // Try to fetch from backend API
-    const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+    const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
     const response = await fetch(`${backendUrl}/api/reporters`, {
       method: 'GET',
       headers: {

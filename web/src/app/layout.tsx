@@ -47,7 +47,7 @@ export default async function RootLayout({
           `}
         </Script>
       </head>
-      <body className="bg-app">
+      <body className="bg-background">
         <NextIntlClientProvider messages={messages}>
           <ThemeProviderWrapper>{children}</ThemeProviderWrapper>
           <Toaster />

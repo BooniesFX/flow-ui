@@ -113,62 +113,87 @@ export function ResearchBlock({
         <div className="absolute right-4 flex h-9 items-center justify-center">
           {hasReport && !reportStreaming && (
             <>
-              <Tooltip title={t("generatePodcast")}>
-                <Button
-                  className="text-gray-400"
-                  size="icon"
-                  variant="ghost"
-                  disabled={isReplay}
-                  onClick={handleGeneratePodcast}
-                >
-                  <Headphones />
-                </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="text-gray-400"
+                    size="icon"
+                    variant="ghost"
+                    disabled={isReplay}
+                    onClick={handleGeneratePodcast}
+                  >
+                    <Headphones />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t("generatePodcast")}</p>
+                </TooltipContent>
               </Tooltip>
-              <Tooltip title={t("edit")}>
-                <Button
-                  className="text-gray-400"
-                  size="icon"
-                  variant="ghost"
-                  disabled={isReplay}
-                  onClick={handleEdit}
-                >
-                  {editing ? <Undo2 /> : <Pencil />}
-                </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="text-gray-400"
+                    size="icon"
+                    variant="ghost"
+                    disabled={isReplay}
+                    onClick={handleEdit}
+                  >
+                    {editing ? <Undo2 /> : <Pencil />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t("edit")}</p>
+                </TooltipContent>
               </Tooltip>
-              <Tooltip title={t("copy")}>
-                <Button
-                  className="text-gray-400"
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleCopy}
-                >
-                  {copied ? <Check /> : <Copy />}
-                </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="text-gray-400"
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleCopy}
+                  >
+                    {copied ? <Check /> : <Copy />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t("copy")}</p>
+                </TooltipContent>
               </Tooltip>
-              <Tooltip title={t("downloadReport")}>
-                <Button
-                  className="text-gray-400"
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleDownload}
-                >
-                  <Download />
-                </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="text-gray-400"
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleDownload}
+                  >
+                    <Download />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t("downloadReport")}</p>
+                </TooltipContent>
               </Tooltip>
             </>
           )}
           <ResearchSettingsDialog />
-          <Tooltip title={t("close")}>
-            <Button
-              className="text-gray-400"
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                closeResearch();
-              }}
-            >
-              <X />
-            </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="text-gray-400"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  closeResearch();
+                }}
+              >
+                <X />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{t("close")}</p>
+            </TooltipContent>
           </Tooltip>
         </div>
         <Tabs

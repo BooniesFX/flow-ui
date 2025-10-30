@@ -127,7 +127,7 @@ export function MessagesBlock({ className }: { className?: string }) {
           >
             <Card
               className={cn(
-                "w-full transition-all duration-300",
+                "w-full transition-all duration-300 replay-card",
                 !replayStarted && "translate-y-[-40vh]",
               )}
             >
@@ -169,7 +169,7 @@ export function MessagesBlock({ className }: { className?: string }) {
                   </CardHeader>
                 </div>
                 {!replayHasError && (
-                  <div className="pr-4">
+                  <div className="pr-4 replay-controls">
                     {responding && (
                       <Button
                         className={cn(fastForwarding && "animate-pulse")}

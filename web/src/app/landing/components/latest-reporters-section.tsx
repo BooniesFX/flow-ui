@@ -78,9 +78,9 @@ export function LatestReportersSection() {
       />
       {reporters.length === 0 ? (
         <div className="w-3/4 text-center text-muted-foreground py-12">
-          <p>{t("noReporters", "暂无历史报告 No previous reports found")}</p>
+          <p>{t("noReporters")}</p>
           <p className="text-sm mt-2">
-            {t("startResearch", "开始新的研究以生成报告 Start a new research to generate reports")}
+            {t("startResearch")}
           </p>
         </div>
       ) : (
@@ -92,7 +92,7 @@ export function LatestReportersSection() {
                   Icon: Bot,
                   name: reporter.title,
                   description: reporter.description,
-                  href: `/chat?replay=${reporter.id}`,
+                  href: `/report/${reporter.id}`,
                   cta: t("clickToView"),
                   className: "w-full h-full",
                 }}

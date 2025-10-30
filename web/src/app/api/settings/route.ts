@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { NextRequest, NextResponse } from 'next/server';
 import yaml from 'yaml';
 
 // Path to the conf.yaml file
@@ -27,7 +27,7 @@ const defaultConfigStructure = {
 };
 
 // Map UI config to YAML config
-function mapUIToYAML(uiConfig: any) {
+function mapUIToYAML(uiConfig: Record<string, any>) {
   return {
     BASIC_MODEL: {
       base_url: uiConfig.general.basicModel?.baseUrl,
@@ -58,34 +58,34 @@ function mapUIToYAML(uiConfig: any) {
 }
 
 // Map YAML config to UI config
-function mapYAMLToUI(yamlConfig: any) {
+function mapYAMLToUI(yamlConfig: Record<string, any>) {
   return {
     general: {
-      language: yamlConfig.GENERAL_SETTINGS?.language || 'zh',
-      theme: yamlConfig.GENERAL_SETTINGS?.theme || 'light',
-      autoAcceptPlan: yamlConfig.GENERAL_SETTINGS?.autoAcceptPlan || false,
-      enableClarification: yamlConfig.GENERAL_SETTINGS?.enableClarification || true,
-      maxClarificationRounds: yamlConfig.GENERAL_SETTINGS?.maxClarificationRounds || 3,
-      maxPlanIterations: yamlConfig.GENERAL_SETTINGS?.maxPlanIterations || 2,
-      maxStepsOfPlan: yamlConfig.GENERAL_SETTINGS?.maxStepsOfPlan || 3,
-      maxSearchResults: yamlConfig.GENERAL_SETTINGS?.maxSearchResults || 3,
+      language: yamlConfig.GENERAL_SETTINGS?.language ?? 'zh',
+      theme: yamlConfig.GENERAL_SETTINGS?.theme ?? 'light',
+      autoAcceptPlan: yamlConfig.GENERAL_SETTINGS?.autoAcceptPlan ?? false,
+      enableClarification: yamlConfig.GENERAL_SETTINGS?.enableClarification ?? true,
+      maxClarificationRounds: yamlConfig.GENERAL_SETTINGS?.maxClarificationRounds ?? 3,
+      maxPlanIterations: yamlConfig.GENERAL_SETTINGS?.maxPlanIterations ?? 2,
+      maxStepsOfPlan: yamlConfig.GENERAL_SETTINGS?.maxStepsOfPlan ?? 3,
+      maxSearchResults: yamlConfig.GENERAL_SETTINGS?.maxSearchResults ?? 3,
       // Model settings
       basicModel: {
-        baseUrl: yamlConfig.BASIC_MODEL?.base_url || process.env.NEXT_PUBLIC_BASIC_MODEL_BASE_URL || "https://api-inference.modelscope.cn/v1",
-        model: yamlConfig.BASIC_MODEL?.model || process.env.NEXT_PUBLIC_BASIC_MODEL_NAME || "ZhipuAI/GLM-4.6",
-        apiKey: yamlConfig.BASIC_MODEL?.api_key || process.env.NEXT_PUBLIC_BASIC_MODEL_API_KEY || "",
+        baseUrl: yamlConfig.BASIC_MODEL?.base_url ?? process.env.NEXT_PUBLIC_BASIC_MODEL_BASE_URL ?? "https://api-inference.modelscope.cn/v1",
+        model: yamlConfig.BASIC_MODEL?.model ?? process.env.NEXT_PUBLIC_BASIC_MODEL_NAME ?? "ZhipuAI/GLM-4.6",
+        apiKey: yamlConfig.BASIC_MODEL?.api_key ?? process.env.NEXT_PUBLIC_BASIC_MODEL_API_KEY ?? "",
       },
       reasoningModel: {
-        baseUrl: yamlConfig.REASONING_MODEL?.base_url || process.env.NEXT_PUBLIC_REASONING_MODEL_BASE_URL || "https://api-inference.modelscope.cn/v1",
-        model: yamlConfig.REASONING_MODEL?.model || process.env.NEXT_PUBLIC_REASONING_MODEL_NAME || "Qwen/Qwen3-235B-A22B-Thinking-2507",
-        apiKey: yamlConfig.REASONING_MODEL?.api_key || process.env.NEXT_PUBLIC_REASONING_MODEL_API_KEY || "",
+        baseUrl: yamlConfig.REASONING_MODEL?.base_url ?? process.env.NEXT_PUBLIC_REASONING_MODEL_BASE_URL ?? "https://api-inference.modelscope.cn/v1",
+        model: yamlConfig.REASONING_MODEL?.model ?? process.env.NEXT_PUBLIC_REASONING_MODEL_NAME ?? "Qwen/Qwen3-235B-A22B-Thinking-2507",
+        apiKey: yamlConfig.REASONING_MODEL?.api_key ?? process.env.NEXT_PUBLIC_REASONING_MODEL_API_KEY ?? "",
       },
       // Search engine settings
       searchEngine: {
-        engine: yamlConfig.SEARCH_ENGINE?.engine || process.env.NEXT_PUBLIC_SEARCH_ENGINE || "tavily",
-        apiKey: yamlConfig.SEARCH_ENGINE?.api_key || process.env.NEXT_PUBLIC_SEARCH_API_KEY || "",
+        engine: yamlConfig.SEARCH_ENGINE?.engine ?? process.env.NEXT_PUBLIC_SEARCH_ENGINE ?? "tavily",
+        apiKey: yamlConfig.SEARCH_ENGINE?.api_key ?? process.env.NEXT_PUBLIC_SEARCH_API_KEY ?? "",
         includeImages: yamlConfig.SEARCH_ENGINE?.include_images === true || process.env.NEXT_PUBLIC_SEARCH_INCLUDE_IMAGES === "true" || false,
-        minScoreThreshold: yamlConfig.SEARCH_ENGINE?.min_score_threshold || parseFloat(process.env.NEXT_PUBLIC_SEARCH_MIN_SCORE_THRESHOLD || "0.4"),
+        minScoreThreshold: yamlConfig.SEARCH_ENGINE?.min_score_threshold ?? parseFloat(process.env.NEXT_PUBLIC_SEARCH_MIN_SCORE_THRESHOLD ?? "0.4"),
       },
     },
     mcp: {

@@ -184,6 +184,26 @@
       "toggleFullscreen": "Toggle fullscreen"
     }
   },
+  "report": {
+    "title": "Research Report",
+    "description": "View and explore detailed research reports",
+    "backToResearch": "Back to Research",
+    "download": "Download",
+    "playPodcast": "Play Podcast",
+    "pause": "Pause",
+    "generating": "Generating...",
+    "createdAt": "Created",
+    "updatedAt": "Updated",
+    "content": "Content",
+    "sources": "Sources",
+    "media": "Media",
+    "reportContent": "Report Content",
+    "reportContentDescription": "Full content of the research report",
+    "sourcesDescription": "Sources and references used in this report",
+    "mediaDescription": "Images and media content related to this report",
+    "noSources": "No sources available for this report",
+    "noMedia": "No media content available for this report"
+  },
   "landing": {
     "caseStudies": {
       "title": "Case Studies",

@@ -3,13 +3,11 @@
 
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Download, HeadphonesIcon, FileText, Play, Pause } from "lucide-react";
+import { ArrowLeft, Download, HeadphonesIcon, Play, Pause, List } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { Markdown } from "~/components/deer-flow/markdown";
 import { useRouter } from "next/navigation";
@@ -36,6 +34,12 @@ interface Report {
   };
 }
 
+interface TocItem {
+  id: string;
+  title: string;
+  level: number;
+}
+
 interface ReportViewProps {
   report: Report;
 }
@@ -45,6 +49,57 @@ export function ReportView({ report }: ReportViewProps) {
   const router = useRouter();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
+  const [tocItems, setTocItems] = useState<TocItem[]>([]);
+  const [showToc, setShowToc] = useState(true);
+
+  const formatDate = useCallback((dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      const isoString = date.toISOString();
+      if (!isoString) return dateString;
+      const datePart = isoString.split('T')[0];
+      if (!datePart) return dateString;
+      return datePart.replace(/(\d{4})-(\d{2})-(\d{2})/, "$1/$2/$3");
+    } catch {
+      return dateString;
+    }
+  }, []);
+
+  // Extract table of contents from markdown content
+  const extractToc = useCallback((content: string) => {
+    const headingRegex = /^(#{1,6})\s+(.+)$/gm;
+    const items: TocItem[] = [];
+    let match;
+    const counts = new Map<string, number>();
+    
+    while ((match = headingRegex.exec(content)) !== null) {
+      if (match[1] && match[2]) {
+        const level = match[1].length;
+        const title = match[2].trim();
+        const baseId = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+        const count = counts.get(baseId) || 0;
+        const uniqueId = count > 0 ? `${baseId}-${count}` : baseId;
+        counts.set(baseId, count + 1);
+        
+        items.push({ id: uniqueId, title, level });
+      }
+    }
+    
+    setTocItems(items);
+  }, []);
+
+  // Extract TOC when content changes
+  useEffect(() => {
+    extractToc(report.content);
+  }, [report.content, extractToc]);
+
+  // Scroll to heading
+  const scrollToHeading = useCallback((id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   const handleBackToResearch = useCallback(() => {
     router.push("/chat");
@@ -120,107 +175,113 @@ export function ReportView({ report }: ReportViewProps) {
   }, [isPlaying, handleGeneratePodcast]);
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
-      {/* Header with navigation */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleBackToResearch}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {t("backToResearch")}
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold">{report.title}</h1>
-            <p className="text-muted-foreground mt-1">{report.description}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadReport}
-            className="flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            {t("download")}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleTogglePlay}
-            disabled={isGeneratingPodcast}
-            className="flex items-center gap-2"
-          >
-            {isGeneratingPodcast ? (
-              <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : isPlaying ? (
-              <Pause className="w-4 h-4" />
-            ) : (
-              <Play className="w-4 h-4" />
-            )}
-            <HeadphonesIcon className="w-4 h-4" />
-            {isGeneratingPodcast ? t("generating") : isPlaying ? t("pause") : t("playPodcast")}
-          </Button>
-        </div>
+    <div className="container mx-auto py-8 px-4 max-w-7xl">
+      {/* Navigation Header */}
+      <div className="mb-6">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleBackToResearch}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {t("backToResearch")}
+        </Button>
       </div>
 
-      {/* Report metadata */}
-      <div className="flex items-center gap-4 mb-6 text-sm text-muted-foreground">
-        <span>{t("createdAt")}: {new Date(report.createdAt).toLocaleDateString()}</span>
-        {report.updatedAt !== report.createdAt && (
-          <span>{t("updatedAt")}: {new Date(report.updatedAt).toLocaleDateString()}</span>
-        )}
-        {report.metadata?.style && (
-          <Badge variant="secondary">{report.metadata.style}</Badge>
-        )}
-      </div>
-
-      <Separator className="mb-6" />
-
-      {/* Main content */}
-      <Tabs defaultValue="content" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="content" className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            {t("content")}
-          </TabsTrigger>
-          <TabsTrigger value="sources" className="flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            {t("sources")}
-          </TabsTrigger>
-          <TabsTrigger value="media" className="flex items-center gap-2">
-            <HeadphonesIcon className="w-4 h-4" />
-            {t("media")}
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="content" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("reportContent")}</CardTitle>
-              <CardDescription>{t("reportContentDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-gray max-w-none">
-                <Markdown>{report.content}</Markdown>
+      <div className="flex gap-8">
+        {/* Table of Contents Sidebar */}
+        {tocItems.length > 0 && (
+          <aside className="hidden lg:block w-64 flex-shrink-0">
+            <div className="sticky top-8">
+              <div className="flex items-center gap-2 mb-4">
+                <List className="w-4 h-4" />
+                <h3 className="font-semibold">{t("tableOfContents") || "目录"}</h3>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="sources" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("sources")}</CardTitle>
-              <CardDescription>{t("sourcesDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {report.metadata?.sources && report.metadata.sources.length > 0 ? (
-                <div className="space-y-4">
+              <nav className="space-y-2">
+                {tocItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => scrollToHeading(item.id)}
+                    className={`block text-left w-full text-sm hover:text-blue-600 transition-colors ${
+                      item.level === 1 ? 'font-medium' : 
+                      item.level === 2 ? 'pl-4' : 
+                      item.level === 3 ? 'pl-8' : 
+                      item.level === 4 ? 'pl-12' : 
+                      item.level === 5 ? 'pl-16' : 'pl-20'
+                    }`}
+                  >
+                    {item.title}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </aside>
+        )}
+
+        {/* Main Content */}
+        <div className="flex-1 min-w-0">
+          {/* Report Header */}
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold mb-2">{report.title}</h1>
+            <p className="text-muted-foreground text-lg mb-4">{report.description}</p>
+            
+            {/* Report metadata */}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+              <span>{t("createdAt")}: {formatDate(report.createdAt)}</span>
+              {report.updatedAt !== report.createdAt && (
+                <span>{t("updatedAt")}: {formatDate(report.updatedAt)}</span>
+              )}
+              {report.metadata?.style && (
+                <Badge variant="secondary">{report.metadata.style}</Badge>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadReport}
+                className="flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                {t("download")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTogglePlay}
+                disabled={isGeneratingPodcast}
+                className="flex items-center gap-2"
+              >
+                {isGeneratingPodcast ? (
+                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : isPlaying ? (
+                  <Pause className="w-4 h-4" />
+                ) : (
+                  <Play className="w-4 h-4" />
+                )}
+                <HeadphonesIcon className="w-4 h-4" />
+                {isGeneratingPodcast ? t("generating") : isPlaying ? t("pause") : t("playPodcast")}
+              </Button>
+            </div>
+          </div>
+
+          <Separator className="mb-6" />
+
+          {/* Main content */}
+          <div className="prose prose-gray max-w-none">
+            <Markdown>{report.content}</Markdown>
+          </div>
+
+      {/* Sources section */}
+          {report.metadata?.sources && report.metadata.sources.length > 0 && (
+            <>
+              <Separator className="my-8" />
+              <div>
+                <h2 className="text-xl font-semibold mb-4">{t("sources")}</h2>
+                <div className="grid grid-cols-1 gap-4">
                   {report.metadata.sources.map((source, index) => (
                     <div key={index} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between">
@@ -240,21 +301,16 @@ export function ReportView({ report }: ReportViewProps) {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-muted-foreground">{t("noSources")}</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="media" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("media")}</CardTitle>
-              <CardDescription>{t("mediaDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {report.metadata?.images && report.metadata.images.length > 0 ? (
+              </div>
+            </>
+          )}
+
+          {/* Media section */}
+          {report.metadata?.images && report.metadata.images.length > 0 && (
+            <>
+              <Separator className="my-8" />
+              <div>
+                <h2 className="text-xl font-semibold mb-4">{t("media")}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {report.metadata.images.map((image, index) => (
                     <div key={index} className="border rounded-lg overflow-hidden">
@@ -269,13 +325,11 @@ export function ReportView({ report }: ReportViewProps) {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-muted-foreground">{t("noMedia")}</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

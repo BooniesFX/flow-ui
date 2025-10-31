@@ -202,7 +202,8 @@
     "sourcesDescription": "Sources and references used in this report",
     "mediaDescription": "Images and media content related to this report",
     "noSources": "No sources available for this report",
-    "noMedia": "No media content available for this report"
+    "noMedia": "No media content available for this report",
+    "tableOfContents": "Table of Contents"
   },
   "landing": {
     "caseStudies": {

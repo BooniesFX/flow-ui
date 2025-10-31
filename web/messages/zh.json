@@ -202,7 +202,8 @@
     "sourcesDescription": "本报告中使用的来源和参考资料",
     "mediaDescription": "与本报告相关的图片和媒体内容",
     "noSources": "此报告没有可用的来源",
-    "noMedia": "此报告没有可用的媒体内容"
+    "noMedia": "此报告没有可用的媒体内容",
+    "tableOfContents": "目录"
   },
   "landing": {
     "caseStudies": {

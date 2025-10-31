@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import { Check, Copy } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import ReactMarkdown, {
   type Options as ReactMarkdownOptions,
 } from "react-markdown";
@@ -36,6 +36,30 @@ export function Markdown({
   animated?: boolean;
   checkLinkCredibility?: boolean;
 }) {
+  // Create a deterministic ID generator based on content hash
+  const headingIds = useMemo(() => {
+    const ids = new Map<string, string>();
+    const counts = new Map<string, number>();
+    
+    // Extract all headings from content to ensure consistent ID generation
+    const content = typeof children === 'string' ? children : '';
+    const headingRegex = /^(#{1,6})\s+(.+)$/gm;
+    let match;
+    
+    while ((match = headingRegex.exec(content)) !== null) {
+      if (match[1] && match[2]) {
+        const title = match[2].trim();
+        const baseId = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+        const count = counts.get(baseId) || 0;
+        const uniqueId = count > 0 ? `${baseId}-${count}` : baseId;
+        ids.set(title, uniqueId);
+        counts.set(baseId, count + 1);
+      }
+    }
+    
+    return ids;
+  }, [children]);
+
   const components: ReactMarkdownOptions["components"] = useMemo(() => {
     return {
       a: ({ href, children }) => (
@@ -48,8 +72,38 @@ export function Markdown({
           <Image className="rounded" src={src as string} alt={alt ?? ""} />
         </a>
       ),
+      h1: ({ children, ...props }) => {
+        const text = typeof children === 'string' ? children : children?.toString() || '';
+        const id = props.id || headingIds.get(text) || '';
+        return <h1 id={id} {...props}>{children}</h1>;
+      },
+      h2: ({ children, ...props }) => {
+        const text = typeof children === 'string' ? children : children?.toString() || '';
+        const id = props.id || headingIds.get(text) || '';
+        return <h2 id={id} {...props}>{children}</h2>;
+      },
+      h3: ({ children, ...props }) => {
+        const text = typeof children === 'string' ? children : children?.toString() || '';
+        const id = props.id || headingIds.get(text) || '';
+        return <h3 id={id} {...props}>{children}</h3>;
+      },
+      h4: ({ children, ...props }) => {
+        const text = typeof children === 'string' ? children : children?.toString() || '';
+        const id = props.id || headingIds.get(text) || '';
+        return <h4 id={id} {...props}>{children}</h4>;
+      },
+      h5: ({ children, ...props }) => {
+        const text = typeof children === 'string' ? children : children?.toString() || '';
+        const id = props.id || headingIds.get(text) || '';
+        return <h5 id={id} {...props}>{children}</h5>;
+      },
+      h6: ({ children, ...props }) => {
+        const text = typeof children === 'string' ? children : children?.toString() || '';
+        const id = props.id || headingIds.get(text) || '';
+        return <h6 id={id} {...props}>{children}</h6>;
+      },
     };
-  }, [checkLinkCredibility]);
+  }, [checkLinkCredibility, headingIds]);
 
   const rehypePlugins = useMemo<NonNullable<ReactMarkdownOptions["rehypePlugins"]>>(() => {
     const plugins: NonNullable<ReactMarkdownOptions["rehypePlugins"]> = [[

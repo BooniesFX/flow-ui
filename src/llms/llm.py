@@ -57,31 +57,35 @@ def _create_llm_use_conf(llm_type: LLMType, conf: Dict[str, Any]) -> BaseChatMod
     custom_basic_model = get_custom_basic_model()
     custom_reasoning_model = get_custom_reasoning_model()
     
+    # Initialize merged_conf
+    merged_conf = {}
+    
     # Use custom configuration if available
     if llm_type == "basic" and custom_basic_model:
         merged_conf = custom_basic_model.copy()
     elif llm_type == "reasoning" and custom_reasoning_model:
         merged_conf = custom_reasoning_model.copy()
     else:
-        llm_type_config_keys = _get_llm_type_config_keys()
-        config_key = llm_type_config_keys.get(llm_type)
+        # For other LLM types (coordinator, etc.), use the basic model configuration
+        if custom_basic_model and llm_type not in ["basic", "reasoning"]:
+            merged_conf = custom_basic_model.copy()
+        else:
+            # 没有配置时返回None，让调用者处理
+            return None
+    
+    # Fix parameter names for ChatOpenAI compatibility
+    if "apiKey" in merged_conf:
+        merged_conf["api_key"] = merged_conf.pop("apiKey")
+    if "baseUrl" in merged_conf:
+        merged_conf["base_url"] = merged_conf.pop("baseUrl")
+    
+    # Convert tokenLimit to token_limit for internal consistency
+    if "tokenLimit" in merged_conf:
+        merged_conf["token_limit"] = merged_conf.pop("tokenLimit")
 
-        if not config_key:
-            raise ValueError(f"Unknown LLM type: {llm_type}")
-
-        llm_conf = conf.get(config_key, {})
-        if not isinstance(llm_conf, dict):
-            raise ValueError(f"Invalid LLM configuration for {llm_type}: {llm_conf}")
-
-        # Get configuration from environment variables
-        env_conf = _get_env_llm_conf(llm_type)
-
-        # Merge configurations, with environment variables taking precedence
-        merged_conf = {**llm_conf, **env_conf}
-
-    # Remove unnecessary parameters when initializing the client
-    if "token_limit" in merged_conf:
-        merged_conf.pop("token_limit")
+    # Remove token_limit before passing to the client
+    # We store it separately for context management
+    token_limit = merged_conf.pop("token_limit", None)
 
     # Add max_retries to handle rate limit errors if not present
     if "max_retries" not in merged_conf:
@@ -143,11 +147,28 @@ def get_llm_by_type(llm_type: LLMType) -> BaseChatModel:
     """
     Get LLM instance by type. Returns cached instance if available.
     """
+    # Check if we have custom configuration from frontend
+    from src.config.context import get_custom_basic_model, get_custom_reasoning_model
+    custom_basic_model = get_custom_basic_model()
+    custom_reasoning_model = get_custom_reasoning_model()
+    
+    # If we have custom configuration, don't use cache
+    if (llm_type == "basic" and custom_basic_model) or \
+       (llm_type == "reasoning" and custom_reasoning_model) or \
+       (custom_basic_model and llm_type not in ["basic", "reasoning"]):
+        # Clear cache for this type to ensure fresh configuration
+        if llm_type in _llm_cache:
+            del _llm_cache[llm_type]
+    
     if llm_type in _llm_cache:
         return _llm_cache[llm_type]
 
     conf = load_yaml_config(_get_config_file_path())
     llm = _create_llm_use_conf(llm_type, conf)
+    
+    if llm is None:
+        raise ValueError(f"No configuration found for LLM type: {llm_type}. Please configure the model settings in the frontend settings.")
+    
     _llm_cache[llm_type] = llm
     return llm
 
@@ -199,13 +220,28 @@ def get_llm_token_limit_by_type(llm_type: str) -> int:
     Returns:
         int: The maximum token limit for the specified LLM type.
     """
-
+    
+    # First try to get from user configuration
+    from src.config.context import get_custom_basic_model, get_custom_reasoning_model
+    custom_basic_model = get_custom_basic_model()
+    custom_reasoning_model = get_custom_reasoning_model()
+    
+    if llm_type == "reasoning" and custom_reasoning_model:
+        # Use token limit from reasoning model config if available
+        return custom_reasoning_model.get("token_limit", 8000)
+    elif custom_basic_model and llm_type in ["basic", "coordinator", "planner", "researcher", "coder", "reporter"]:
+        # Use token limit from basic model config if available
+        return custom_basic_model.get("token_limit", 8000)
+    
+    # Fall back to configuration file
     llm_type_config_keys = _get_llm_type_config_keys()
     config_key = llm_type_config_keys.get(llm_type)
 
     conf = load_yaml_config(_get_config_file_path())
     llm_max_token = conf.get(config_key, {}).get("token_limit")
-    return llm_max_token
+    
+    # Return configured limit or default
+    return llm_max_token if llm_max_token is not None else 8000
 
 
 # In the future, we will use reasoning_llm and vl_llm for different purposes

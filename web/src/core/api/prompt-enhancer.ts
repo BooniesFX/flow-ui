@@ -7,6 +7,22 @@ export interface EnhancePromptRequest {
   prompt: string;
   context?: string;
   report_style?: string;
+  basic_model?: {
+    baseUrl: string;
+    model: string;
+    apiKey: string;
+  };
+  reasoning_model?: {
+    baseUrl: string;
+    model: string;
+    apiKey: string;
+  };
+  search_engine?: {
+    engine: string;
+    apiKey: string;
+    includeImages: boolean;
+    minScoreThreshold: number;
+  };
 }
 
 export interface EnhancePromptResponse {
@@ -15,13 +31,37 @@ export interface EnhancePromptResponse {
 
 export async function enhancePrompt(
   request: EnhancePromptRequest,
+  modelConfig?: {
+    basic_model?: {
+      baseUrl: string;
+      model: string;
+      apiKey: string;
+    };
+    reasoning_model?: {
+      baseUrl: string;
+      model: string;
+      apiKey: string;
+    };
+    search_engine?: {
+      engine: string;
+      apiKey: string;
+      includeImages: boolean;
+      minScoreThreshold: number;
+    };
+  },
 ): Promise<string> {
+  // Include model configuration in the request
+  const requestBody = {
+    ...request,
+    ...modelConfig,
+  };
+  
   const response = await fetch(resolveServiceURL("prompt/enhance"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {

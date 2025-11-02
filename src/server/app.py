@@ -259,6 +259,7 @@ async def _stream_graph_events(
 ):
     """Stream events from the graph and process them."""
     try:
+        logger.info(f"[DEBUG] Starting graph astream with thread_id: {thread_id}")
         async for agent, _, event_data in graph_instance.astream(
             workflow_input,
             config=workflow_config,
@@ -267,12 +268,19 @@ async def _stream_graph_events(
         ):
             if isinstance(event_data, dict):
                 if "__interrupt__" in event_data:
+                    logger.info(f"[DEBUG] Graph interrupted, yielding interrupt event")
                     yield _create_interrupt_event(thread_id, event_data)
-                continue
+                    logger.info(f"[DEBUG] Interrupt event yielded, ending stream")
+                    return  # End the stream after interrupt
 
-            message_chunk, message_metadata = cast(
-                tuple[BaseMessage, dict[str, Any]], event_data
-            )
+            # Handle different event_data formats
+            if isinstance(event_data, (tuple, list)) and len(event_data) >= 2:
+                message_chunk, message_metadata = cast(
+                    tuple[BaseMessage, dict[str, Any]], event_data[:2]
+                )
+            else:
+                logger.warning(f"[DEBUG] Unexpected event_data format: {type(event_data)}, content: {event_data}")
+                continue
 
             async for event in _process_message_chunk(
                 message_chunk, message_metadata, thread_id, agent
@@ -320,24 +328,82 @@ async def _astream_workflow_generator(
                 _process_initial_messages(message, thread_id)
 
         # Prepare workflow input
-        workflow_input = {
-            "messages": messages,
-            "plan_iterations": 0,
-            "final_report": "",
-            "current_plan": None,
-            "observations": [],
-            "auto_accepted_plan": auto_accepted_plan,
-            "enable_background_investigation": enable_background_investigation,
-            "research_topic": messages[-1]["content"] if messages else "",
-            "enable_clarification": enable_clarification,
-            "max_clarification_rounds": max_clarification_rounds,
-        }
+        logger.info(f"[DEBUG] Checking for existing checkpoint for thread_id: {thread_id}")
+        logger.info(f"[DEBUG] auto_accepted_plan: {auto_accepted_plan}, interrupt_feedback: '{interrupt_feedback}'")
+        
+        # Check if we have a checkpoint for this thread_id and auto_accepted_plan is False
+        # This indicates we're resuming from an interrupt even without explicit interrupt_feedback
+        existing_checkpoint = None
+        if hasattr(graph, 'checkpointer') and graph.checkpointer:
+            try:
+                # Try to get the latest checkpoint for this thread
+                checkpoint_config = {"configurable": {"thread_id": thread_id}}
+                logger.info(f"[DEBUG] Calling graph.checkpointer.get_tuple with config: {checkpoint_config}")
+                checkpoint_tuple = graph.checkpointer.get_tuple(checkpoint_config)
+                if checkpoint_tuple:
+                    existing_checkpoint = checkpoint_tuple
+                    logger.info(f"[DEBUG] Found existing checkpoint for thread_id: {thread_id}")
+                    logger.info(f"[DEBUG] Checkpoint parent config: {checkpoint_tuple[3]}")
+                    logger.info(f"[DEBUG] Checkpoint metadata: {checkpoint_tuple[4]}")
+                else:
+                    logger.info(f"[DEBUG] No existing checkpoint found for thread_id: {thread_id}")
+            except Exception as e:
+                # If there's no checkpoint, continue with normal flow
+                logger.info(f"[DEBUG] Error checking for checkpoint: {e}")
+                pass
+        else:
+            logger.info(f"[DEBUG] No checkpointer found in graph")
 
-        if not auto_accepted_plan and interrupt_feedback:
-            resume_msg = f"[{interrupt_feedback}]"
-            if messages:
-                resume_msg += f" {messages[-1]['content']}"
-            workflow_input = Command(resume=resume_msg)
+        logger.info(f"[DEBUG] existing_checkpoint: {existing_checkpoint is not None}")
+        
+        # Fix checkpoint logic: when auto_accepted_plan is False, we should always try to resume from checkpoint
+        # This ensures that interrupted workflows can be resumed properly
+        if not auto_accepted_plan:
+            if existing_checkpoint:
+                # Resume from existing checkpoint
+                logger.info(f"[DEBUG] Resuming from existing checkpoint for thread_id: {thread_id}")
+                resume_msg = f"[{interrupt_feedback}]" if interrupt_feedback else "[RESUME_FROM_INTERRUPT]"
+                if messages:
+                    resume_msg += f" {messages[-1]['content']}"
+                logger.info(f"[DEBUG] Resuming workflow from checkpoint with message: {resume_msg}")
+                workflow_input = Command(resume=resume_msg)
+            elif interrupt_feedback:
+                # New request with interrupt feedback (shouldn't normally happen)
+                logger.info(f"[DEBUG] New request with interrupt feedback but no checkpoint: {interrupt_feedback}")
+                resume_msg = f"[{interrupt_feedback}]"
+                if messages:
+                    resume_msg += f" {messages[-1]['content']}"
+                workflow_input = Command(resume=resume_msg)
+            else:
+                # New request without auto_accept_plan, initialize fresh state
+                logger.info(f"[DEBUG] Initializing fresh workflow state (no checkpoint found)")
+                workflow_input = {
+                    "messages": messages,
+                    "plan_iterations": 0,
+                    "final_report": "",
+                    "current_plan": None,
+                    "observations": [],
+                    "auto_accepted_plan": auto_accepted_plan,
+                    "enable_background_investigation": enable_background_investigation,
+                    "research_topic": messages[-1]["content"] if messages else "",
+                    "enable_clarification": enable_clarification,
+                    "max_clarification_rounds": max_clarification_rounds,
+                }
+        else:
+            # For auto-accepted plans, initialize fresh state
+            logger.info(f"[DEBUG] Initializing fresh workflow state (auto_accepted_plan=True)")
+            workflow_input = {
+                "messages": messages,
+                "plan_iterations": 0,
+                "final_report": "",
+                "current_plan": None,
+                "observations": [],
+                "auto_accepted_plan": auto_accepted_plan,
+                "enable_background_investigation": enable_background_investigation,
+                "research_topic": messages[-1]["content"] if messages else "",
+                "enable_clarification": enable_clarification,
+                "max_clarification_rounds": max_clarification_rounds,
+            }
 
         # Prepare workflow config
         workflow_config = {
@@ -350,6 +416,7 @@ async def _astream_workflow_generator(
             "report_style": report_style.value,
             "enable_deep_thinking": enable_deep_thinking,
             "recursion_limit": get_recursion_limit(),
+            "search_engine": search_engine,
         }
 
         checkpoint_saver = get_bool_env("LANGGRAPH_CHECKPOINT_SAVER", False)
@@ -386,55 +453,23 @@ async def _astream_workflow_generator(
                     ):
                         yield event
         else:
-            # Use graph without MongoDB checkpointer
+            # Use graph with MemorySaver checkpointer
+            # Reuse the checkpointer from the global graph instance to maintain state across requests
+            logger.info("Using in-memory checkpointer for interrupts.")
+            # Ensure the global graph's checkpointer is used instead of creating a new one
+            if not hasattr(graph, 'checkpointer') or graph.checkpointer is None:
+                from langgraph.checkpoint.memory import MemorySaver
+                graph.checkpointer = MemorySaver()
+            graph.store = in_memory_store
             async for event in _stream_graph_events(
                 graph, workflow_input, workflow_config, thread_id
             ):
                 yield event
-    finally:
-        # Clear custom model configurations
-        clear_custom_models()
-
-    checkpoint_saver = get_bool_env("LANGGRAPH_CHECKPOINT_SAVER", False)
-    checkpoint_url = get_str_env("LANGGRAPH_CHECKPOINT_DB_URL", "")
-    # Handle checkpointer if configured
-    connection_kwargs = {
-        "autocommit": True,
-        "row_factory": "dict_row",
-        "prepare_threshold": 0,
-    }
-    if checkpoint_saver and checkpoint_url != "":
-        if checkpoint_url.startswith("postgresql://"):
-            logger.info("start async postgres checkpointer.")
-            async with AsyncConnectionPool(
-                checkpoint_url, kwargs=connection_kwargs
-            ) as conn:
-                checkpointer = AsyncPostgresSaver(conn)
-                await checkpointer.setup()
-                graph.checkpointer = checkpointer
-                graph.store = in_memory_store
-                async for event in _stream_graph_events(
-                    graph, workflow_input, workflow_config, thread_id
-                ):
-                    yield event
-
-        if checkpoint_url.startswith("mongodb://"):
-            logger.info("start async mongodb checkpointer.")
-            async with AsyncMongoDBSaver.from_conn_string(
-                checkpoint_url
-            ) as checkpointer:
-                graph.checkpointer = checkpointer
-                graph.store = in_memory_store
-                async for event in _stream_graph_events(
-                    graph, workflow_input, workflow_config, thread_id
-                ):
-                    yield event
-    else:
-        # Use graph without MongoDB checkpointer
-        async for event in _stream_graph_events(
-            graph, workflow_input, workflow_config, thread_id
-        ):
-            yield event
+    except Exception as e:
+        logger.exception(f"Error in workflow generator: {e}")
+        raise
+    # Note: Don't clear custom models here anymore
+    # Each new request will set its own configuration
 
 
 def _make_event(event_type: str, data: dict[str, any]):
@@ -575,39 +610,48 @@ async def generate_prose(request: GenerateProseRequest):
 @app.post("/api/prompt/enhance")
 async def enhance_prompt(request: EnhancePromptRequest):
     try:
-        sanitized_prompt = request.prompt.replace("\r\n", "").replace("\n", "")
-        logger.info(f"Enhancing prompt: {sanitized_prompt}")
+        from src.config.context import set_custom_models, clear_custom_models
+        
+        # Set custom model configurations in context
+        set_custom_models(request.basic_model, request.reasoning_model, request.search_engine)
+        
+        try:
+            sanitized_prompt = request.prompt.replace("\r\n", "").replace("\n", "")
+            logger.info(f"Enhancing prompt: {sanitized_prompt}")
 
-        # Convert string report_style to ReportStyle enum
-        report_style = None
-        if request.report_style:
-            try:
-                # Handle both uppercase and lowercase input
-                style_mapping = {
-                    "ACADEMIC": ReportStyle.ACADEMIC,
-                    "POPULAR_SCIENCE": ReportStyle.POPULAR_SCIENCE,
-                    "NEWS": ReportStyle.NEWS,
-                    "SOCIAL_MEDIA": ReportStyle.SOCIAL_MEDIA,
-                    "STRATEGIC_INVESTMENT": ReportStyle.STRATEGIC_INVESTMENT,
-                }
-                report_style = style_mapping.get(
-                    request.report_style.upper(), ReportStyle.ACADEMIC
-                )
-            except Exception:
-                # If invalid style, default to ACADEMIC
+            # Convert string report_style to ReportStyle enum
+            report_style = None
+            if request.report_style:
+                try:
+                    # Handle both uppercase and lowercase input
+                    style_mapping = {
+                        "ACADEMIC": ReportStyle.ACADEMIC,
+                        "POPULAR_SCIENCE": ReportStyle.POPULAR_SCIENCE,
+                        "NEWS": ReportStyle.NEWS,
+                        "SOCIAL_MEDIA": ReportStyle.SOCIAL_MEDIA,
+                        "STRATEGIC_INVESTMENT": ReportStyle.STRATEGIC_INVESTMENT,
+                    }
+                    report_style = style_mapping.get(
+                        request.report_style.upper(), ReportStyle.ACADEMIC
+                    )
+                except Exception:
+                    # If invalid style, default to ACADEMIC
+                    report_style = ReportStyle.ACADEMIC
+            else:
                 report_style = ReportStyle.ACADEMIC
-        else:
-            report_style = ReportStyle.ACADEMIC
 
-        workflow = build_prompt_enhancer_graph()
-        final_state = workflow.invoke(
-            {
-                "prompt": request.prompt,
-                "context": request.context,
-                "report_style": report_style,
-            }
-        )
-        return {"result": final_state["output"]}
+            workflow = build_prompt_enhancer_graph()
+            final_state = workflow.invoke(
+                {
+                    "prompt": request.prompt,
+                    "context": request.context,
+                    "report_style": report_style,
+                }
+            )
+            return {"result": final_state["output"]}
+        finally:
+            # Clear custom model configurations
+            clear_custom_models()
     except Exception as e:
         logger.exception(f"Error occurred during prompt enhancement: {str(e)}")
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL)

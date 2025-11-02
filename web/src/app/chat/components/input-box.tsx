@@ -55,6 +55,9 @@ export function InputBox({
   const backgroundInvestigation = useSettingsStore(
     (state) => state.general.enableBackgroundInvestigation,
   );
+  const reasoningModel = useSettingsStore(
+    (state) => state.general.reasoningModel,
+  );
   const { config, loading } = useConfig();
   const reportStyle = useSettingsStore((state) => state.general.reportStyle);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,10 +100,20 @@ export function InputBox({
     setIsEnhanceAnimating(true);
 
     try {
+      // Get user's model configuration
+      const settings = useSettingsStore.getState();
+      const modelConfig = {
+        basic_model: settings.general.basicModel,
+        reasoning_model: settings.general.reasoningModel,
+        search_engine: settings.general.searchEngine,
+      };
+
+      
+
       const enhancedPrompt = await enhancePrompt({
         prompt: currentPrompt,
         report_style: reportStyle.toUpperCase(),
-      });
+      }, modelConfig);
 
       // Add a small delay for better UX
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -214,7 +227,7 @@ export function InputBox({
       </div>
       <div className="flex items-center px-4 py-2">
         <div className="flex grow gap-2">
-          {config?.models.reasoning?.[0] && (
+          {(reasoningModel?.model && reasoningModel?.baseUrl) && (
             <Tooltip
               className="max-w-60"
               title={
@@ -226,7 +239,7 @@ export function InputBox({
                   </h3>
                   <p>
                     {t("deepThinkingTooltip.description", {
-                      model: config.models.reasoning?.[0] ?? "",
+                      model: reasoningModel?.model ?? "",
                     })}
                   </p>
                 </div>

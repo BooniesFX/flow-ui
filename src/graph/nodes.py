@@ -8,11 +8,13 @@ import os
 import re
 import uuid
 from functools import partial
+from pathlib import Path
 from typing import Annotated, Literal
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from langchain_core.language_models import BaseChatModel
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.types import Command, interrupt
 from openai import BadRequestError
@@ -21,6 +23,7 @@ from src.agents import create_agent
 from src.config.agents import AGENT_LLM_MAP
 from src.config.configuration import Configuration
 from src.llms.llm import get_llm_by_type, get_llm_token_limit_by_type
+from src.config.context import get_custom_basic_model, get_custom_reasoning_model
 from src.prompts.planner_model import Plan
 from src.prompts.template import apply_prompt_template
 from src.tools import (
@@ -37,6 +40,46 @@ from ..config import SELECTED_SEARCH_ENGINE, SearchEngine
 from .types import State
 
 logger = logging.getLogger(__name__)
+
+
+def _get_llm_for_agent(agent_type: str) -> BaseChatModel:
+    """
+    Get LLM instance for an agent, using frontend configuration only.
+    """
+    # Check if we have custom configuration from frontend
+    custom_basic_model = get_custom_basic_model()
+    custom_reasoning_model = get_custom_reasoning_model()
+    
+    # Debug logging
+    logger.info(f"[DEBUG] _get_llm_for_agent called for agent_type: {agent_type}")
+    logger.info(f"[DEBUG] custom_basic_model: {custom_basic_model}")
+    logger.info(f"[DEBUG] custom_reasoning_model: {custom_reasoning_model}")
+    
+    # Map agent types to model configurations
+    if agent_type == "reasoning" and custom_reasoning_model:
+        # Use reasoning model configuration
+        from src.llms.llm import _create_llm_use_conf
+        llm = _create_llm_use_conf("reasoning", {})
+        if llm is not None:
+            return llm
+    elif custom_basic_model:
+        # Use basic model configuration for all other agents
+        from src.llms.llm import _create_llm_use_conf
+        llm = _create_llm_use_conf("basic", {})
+        if llm is not None:
+            return llm
+    
+    # No configuration available - require user to configure in frontend
+    if agent_type == "reasoning":
+        raise ValueError(
+            "未配置推理模型。请在设置中配置推理模型（Reasoning Model）。\n"
+            "No reasoning model configured. Please configure the Reasoning Model in settings."
+        )
+    else:
+        raise ValueError(
+            "未配置基础模型。请在设置中配置基础模型（Basic Model）。\n"
+            "No basic model configured. Please configure the Basic Model in settings."
+        )
 
 
 def _sanitize_agent_input(agent_input: dict) -> dict:
@@ -110,30 +153,38 @@ def background_investigation_node(state: State, config: RunnableConfig):
     configurable = Configuration.from_runnable_config(config)
     query = state.get("research_topic")
     background_investigation_results = None
-    if SELECTED_SEARCH_ENGINE == SearchEngine.TAVILY.value:
-        searched_content = LoggedTavilySearch(
-            max_results=configurable.max_search_results
-        ).invoke(query)
-        # check if the searched_content is a tuple, then we need to unpack it
-        if isinstance(searched_content, tuple):
-            searched_content = searched_content[0]
-        if isinstance(searched_content, list):
-            background_investigation_results = [
-                f"## {elem['title']}\n\n{elem['content']}" for elem in searched_content
-            ]
-            return {
-                "background_investigation_results": "\n\n".join(
-                    background_investigation_results
-                )
-            }
-        else:
-            logger.error(
-                f"Tavily search returned malformed response: {searched_content}"
+    # Use the configured search tool instead of hardcoding TavilySearch
+    from src.tools.search import get_web_search_tool
+    
+    
+    
+    search_tool = get_web_search_tool(configurable.max_search_results, configurable.search_engine)
+    searched_content = search_tool.invoke(query)
+    # check if the searched_content is a tuple, then we need to unpack it
+    if isinstance(searched_content, tuple):
+        searched_content = searched_content[0]
+    if isinstance(searched_content, list):
+        # Handle both old format (dict with title/content) and new format (dict with title/content or other structure)
+        background_investigation_results = []
+        for elem in searched_content:
+            if isinstance(elem, dict):
+                # Try to get title and content, with fallbacks
+                title = elem.get('title') or elem.get('url', 'Unknown Title')
+                content = elem.get('content') or elem.get('text', '') or str(elem)
+                background_investigation_results.append(f"## {title}\n\n{content}")
+            else:
+                # If element is not a dict, convert to string
+                background_investigation_results.append(f"## {str(elem)}")
+        return {
+            "background_investigation_results": "\n\n".join(
+                background_investigation_results
             )
+        }
     else:
-        background_investigation_results = get_web_search_tool(
-            configurable.max_search_results
-        ).invoke(query)
+        logger.error(
+                f"Search returned malformed response: {searched_content}"
+            )
+        background_investigation_results = str(searched_content)
     return {
         "background_investigation_results": json.dumps(
             background_investigation_results, ensure_ascii=False
@@ -145,9 +196,14 @@ def planner_node(
     state: State, config: RunnableConfig
 ) -> Command[Literal["human_feedback", "reporter"]]:
     """Planner node that generate the full plan."""
-    logger.info("Planner generating full plan")
+    logger.info("=" * 50)
+    logger.info("PLANNER NODE STARTED")
+    logger.info("=" * 50)
     configurable = Configuration.from_runnable_config(config)
     plan_iterations = state["plan_iterations"] if state.get("plan_iterations", 0) else 0
+    logger.info(f"[DEBUG] planner_node: plan_iterations={plan_iterations}, max_plan_iterations={configurable.max_plan_iterations}")
+    logger.info(f"[DEBUG] state keys: {list(state.keys())}")
+    logger.info(f"[DEBUG] current_plan type: {type(state.get('current_plan'))}")
 
     # For clarification feature: only send the final clarified question to planner
     if state.get("enable_clarification", False) and state.get("clarified_question"):
@@ -180,29 +236,40 @@ def planner_node(
         ]
 
     if configurable.enable_deep_thinking:
-        llm = get_llm_by_type("reasoning")
+        llm = _get_llm_for_agent("reasoning")
     elif AGENT_LLM_MAP["planner"] == "basic":
-        llm = get_llm_by_type("basic").with_structured_output(
-            Plan,
-            method="json_mode",
-        )
+        # Use regular LLM without structured output to avoid validation errors
+        llm = _get_llm_for_agent("basic")
     else:
-        llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
+        llm = _get_llm_for_agent("planner")
 
     # if the plan iterations is greater than the max plan iterations, return the reporter node
     if plan_iterations >= configurable.max_plan_iterations:
+        logger.info(f"[DEBUG] Max iterations reached ({plan_iterations} >= {configurable.max_plan_iterations}), going to reporter")
         return Command(goto="reporter")
 
     full_response = ""
     if AGENT_LLM_MAP["planner"] == "basic" and not configurable.enable_deep_thinking:
-        response = llm.invoke(messages)
-        full_response = response.model_dump_json(indent=4, exclude_none=True)
+        try:
+            logger.info(f"[DEBUG] Invoking planner LLM without structured output")
+            response = llm.invoke(messages)
+            # Get the response content directly
+            full_response = response.content
+            logger.info(f"[DEBUG] Planner response received successfully")
+        except Exception as e:
+            logger.error(f"[DEBUG] Planner LLM invocation failed: {e}")
+            # Try again without structured output
+            logger.info(f"[DEBUG] Retrying without structured output")
+            llm = _get_llm_for_agent("basic")
+            response = llm.invoke(messages)
+            full_response = response.content
+            logger.info(f"[DEBUG] Planner response (without structured output): {full_response}")
     else:
         response = llm.stream(messages)
         for chunk in response:
             full_response += chunk.content
     logger.debug(f"Current state messages: {state['messages']}")
-    logger.info(f"Planner response: {full_response}")
+    logger.info(f"[DEBUG] Final planner response to be sent: {full_response[:200]}...")  # Only log first 200 chars
 
     try:
         curr_plan = json.loads(repair_json_output(full_response))
@@ -222,10 +289,22 @@ def planner_node(
             },
             goto="reporter",
         )
+    # Parse the plan and store it as a Plan object
+    try:
+        curr_plan = json.loads(repair_json_output(full_response))
+        if isinstance(curr_plan, dict):
+            plan_obj = Plan.model_validate(curr_plan)
+        else:
+            plan_obj = full_response
+    except Exception as e:
+        logger.error(f"Error parsing plan: {e}")
+        plan_obj = full_response
+    
+    logger.info(f"[DEBUG] Planner returning to human_feedback")
     return Command(
         update={
             "messages": [AIMessage(content=full_response, name="planner")],
-            "current_plan": full_response,
+            "current_plan": plan_obj,
         },
         goto="human_feedback",
     )
@@ -234,48 +313,68 @@ def planner_node(
 def human_feedback_node(
     state,
 ) -> Command[Literal["planner", "research_team", "reporter", "__end__"]]:
+    logger.info("=" * 50)
+    logger.info("HUMAN FEEDBACK NODE STARTED")
+    logger.info("=" * 50)
     current_plan = state.get("current_plan", "")
     # check if the plan is auto accepted
     auto_accepted_plan = state.get("auto_accepted_plan", False)
+    plan_iterations = state.get("plan_iterations", 0)
+    logger.info(f"[DEBUG] human_feedback_node: auto_accepted_plan={auto_accepted_plan}")
+    logger.info(f"[DEBUG] human_feedback_node: plan_iterations={plan_iterations}")
+    logger.info(f"[DEBUG] current_plan type: {type(current_plan)}")
+    
+    # When auto_accepted_plan is False, we need to interrupt
+    # The interrupt() will raise an exception the first time
+    # When resumed, it will return the user's feedback
+    feedback = None
     if not auto_accepted_plan:
-        feedback = interrupt("Please Review the Plan.")
-
-        # if the feedback is not accepted, return the planner node
-        if feedback and str(feedback).upper().startswith("[EDIT_PLAN]"):
+        # Check if we're resuming from an interrupt (feedback already provided)
+        interrupt_feedback = state.get("_interrupt_feedback")
+        if interrupt_feedback:
+            logger.info(f"[DEBUG] Resuming from interrupt with feedback: {interrupt_feedback}")
+            feedback = interrupt_feedback
+            # Clear the interrupt feedback to prevent infinite loops
+            state["_interrupt_feedback"] = None
+        else:
+            logger.info("[DEBUG] Interrupting for human feedback")
+            feedback = interrupt("Please Review the Plan.")
+            logger.info(f"[DEBUG] Received feedback after resume: {feedback}")
+    
+    # Process feedback (either from auto_accept or from interrupt)
+    if feedback or auto_accepted_plan:
+        if str(feedback).upper().startswith("[EDIT_PLAN]"):
+            logger.info("[DEBUG] User wants to edit plan, going back to planner")
             return Command(
                 update={
                     "messages": [
                         HumanMessage(content=feedback, name="feedback"),
                     ],
+                    "_interrupt_feedback": None,  # Clear feedback
                 },
                 goto="planner",
             )
-        elif feedback and str(feedback).upper().startswith("[ACCEPTED]"):
-            logger.info("Plan is accepted by user.")
+        elif str(feedback).upper().startswith("[ACCEPTED]"):
+            logger.info("[DEBUG] Plan accepted by user")
         else:
-            raise TypeError(f"Interrupt value of {feedback} is not supported.")
+            # For auto_accepted_plan, feedback might be None or empty
+            if auto_accepted_plan:
+                logger.info("[DEBUG] Plan auto accepted")
+            else:
+                raise TypeError(f"Interrupt value of {feedback} is not supported.")
 
     # if the plan is accepted, run the following node
-    plan_iterations = state["plan_iterations"] if state.get("plan_iterations", 0) else 0
+    plan_iterations = state.get("plan_iterations", 0)
     goto = "research_team"
-    try:
-        current_plan = repair_json_output(current_plan)
-        # increment the plan iterations
-        plan_iterations += 1
-        # parse the plan
-        new_plan = json.loads(current_plan)
-    except json.JSONDecodeError:
-        logger.warning("Planner response is not a valid JSON")
-        if plan_iterations > 1:  # the plan_iterations is increased before this check
-            return Command(goto="reporter")
-        else:
-            return Command(goto="__end__")
+    # When plan is accepted, no need to repair JSON as current_plan is already a Plan object
+    plan_iterations += 1
 
+    logger.info(f"[DEBUG] human_feedback_node: going to {goto}, plan_iterations now={plan_iterations}")
     return Command(
         update={
-            "current_plan": Plan.model_validate(new_plan),
+            "current_plan": current_plan,
             "plan_iterations": plan_iterations,
-            "locale": new_plan["locale"],
+            "locale": current_plan.locale if hasattr(current_plan, 'locale') else state.get("locale", "en-US"),
         },
         goto=goto,
     )
@@ -307,7 +406,7 @@ def coordinator_node(
         # Only bind handoff_to_planner tool
         tools = [handoff_to_planner]
         response = (
-            get_llm_by_type(AGENT_LLM_MAP["coordinator"])
+            _get_llm_for_agent("coordinator")
             .bind_tools(tools)
             .invoke(messages)
         )
@@ -448,7 +547,7 @@ def coordinator_node(
         # Bind both clarification tools
         tools = [handoff_to_planner, handoff_after_clarification]
         response = (
-            get_llm_by_type(AGENT_LLM_MAP["coordinator"])
+            _get_llm_for_agent("coordinator")
             .bind_tools(tools)
             .invoke(messages)
         )
@@ -608,9 +707,28 @@ def reporter_node(state: State, config: RunnableConfig):
     invoke_messages += compressed_state.get("messages", [])
 
     logger.debug(f"Current invoke messages: {invoke_messages}")
-    response = get_llm_by_type(AGENT_LLM_MAP["reporter"]).invoke(invoke_messages)
+    response = _get_llm_for_agent("reporter").invoke(invoke_messages)
     response_content = response.content
     logger.info(f"reporter response: {response_content}")
+
+    # Save report to file
+    import uuid
+    import os
+    from pathlib import Path
+    
+    # Create reports directory if it doesn't exist
+    reports_dir = Path("reports")
+    reports_dir.mkdir(exist_ok=True)
+    
+    # Generate report ID and filename
+    report_id = str(uuid.uuid4())[:8]
+    report_file = reports_dir / f"{report_id}.md"
+    
+    # Write report content to file
+    with open(report_file, 'w', encoding='utf-8') as f:
+        f.write(response_content)
+    
+    logger.info(f"Report saved to: {report_file}")
 
     return {"final_report": response_content}
 
@@ -869,7 +987,7 @@ async def researcher_node(
     """Researcher node that do research"""
     logger.info("Researcher node is researching.")
     configurable = Configuration.from_runnable_config(config)
-    tools = [get_web_search_tool(configurable.max_search_results), crawl_tool]
+    tools = [get_web_search_tool(configurable.max_search_results, configurable.search_engine), crawl_tool]
     retriever_tool = get_retriever_tool(state.get("resources", []))
     if retriever_tool:
         tools.insert(0, retriever_tool)

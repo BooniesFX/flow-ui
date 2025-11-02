@@ -283,7 +283,7 @@ export function ReportView({ report }: ReportViewProps) {
                 <h2 className="text-xl font-semibold mb-4">{t("sources")}</h2>
                 <div className="grid grid-cols-1 gap-4">
                   {report.metadata.sources.map((source, index) => (
-                    <div key={index} className="border rounded-lg p-4">
+                    <div key={`source-${index}-${source.title}`} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium">{source.title}</h4>
                         <Badge variant={source.credibility === "high" ? "default" : "secondary"}>
@@ -313,7 +313,7 @@ export function ReportView({ report }: ReportViewProps) {
                 <h2 className="text-xl font-semibold mb-4">{t("media")}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {report.metadata.images.map((image, index) => (
-                    <div key={index} className="border rounded-lg overflow-hidden">
+                    <div key={`image-${index}-${image.url}`} className="border rounded-lg overflow-hidden">
                       <img
                         src={image.url}
                         alt={image.alt}

@@ -37,23 +37,23 @@ export async function* chatStream(
       >;
     };
     // Model settings
-    basic_model?: {
-      baseUrl: string;
-      model: string;
-      apiKey: string;
-    };
-    reasoning_model?: {
-      baseUrl: string;
-      model: string;
-      apiKey: string;
-    };
-    // Search engine settings
-    search_engine?: {
-      engine: string;
-      apiKey: string;
-      includeImages: boolean;
-      minScoreThreshold: number;
-    };
+  basicModel?: {
+    baseUrl: string;
+    model: string;
+    apiKey: string;
+  };
+  reasoningModel?: {
+    baseUrl: string;
+    model: string;
+    apiKey: string;
+  };
+  // Search engine settings
+  searchEngine?: {
+    engine: string;
+    apiKey: string;
+    includeImages: boolean;
+    minScoreThreshold: number;
+  };
   },
   options: { abortSignal?: AbortSignal } = {},
 ) {
@@ -65,11 +65,16 @@ export async function* chatStream(
     return yield* chatReplayStream(userMessage, params, options);
   
   try{
+    const requestBody = {
+      messages: [{ role: "user", content: userMessage }],
+      ...params,
+    };
+    
+    // Debug logging
+    console.log("[DEBUG] Request body being sent:", requestBody);
+    
     const stream = fetchStream(resolveServiceURL("chat/stream"), {
-      body: JSON.stringify({
-        messages: [{ role: "user", content: userMessage }],
-        ...params,
-      }),
+      body: JSON.stringify(requestBody),
       signal: options.abortSignal,
     });
     

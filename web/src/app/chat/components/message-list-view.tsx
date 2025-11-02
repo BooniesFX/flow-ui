@@ -87,6 +87,9 @@ export function MessageListView({
     };
   }, []);
 
+  // 在组件顶部获取所有需要的数据
+  const researchIds = useStore((state) => state.researchIds);
+  
   return (
     <ScrollContainer
       className={cn("flex h-full w-full flex-col overflow-hidden", className)}
@@ -95,17 +98,22 @@ export function MessageListView({
       ref={scrollContainerRef}
     >
       <ul className="flex flex-col">
-        {messageIds.map((messageId) => (
-          <MessageListItem
-            key={messageId}
-            messageId={messageId}
-            waitForFeedback={waitingForFeedbackMessageId === messageId}
-            interruptMessage={interruptMessage}
-            onFeedback={onFeedback}
-            onSendMessage={onSendMessage}
-            onToggleResearch={handleToggleResearch}
-          />
-        ))}
+        {messageIds.map((messageId) => {
+          const startOfResearch = researchIds.includes(messageId);
+          
+          return (
+            <MessageListItem
+              key={messageId}
+              messageId={messageId}
+              waitForFeedback={waitingForFeedbackMessageId === messageId}
+              interruptMessage={interruptMessage}
+              onFeedback={onFeedback}
+              onSendMessage={onSendMessage}
+              onToggleResearch={handleToggleResearch}
+              startOfResearch={startOfResearch}
+            />
+          );
+        })}
         <div className="flex h-8 w-full shrink-0"></div>
       </ul>
       {responding && (noOngoingResearch || !ongoingResearchIsOpen) && (
@@ -123,6 +131,7 @@ function MessageListItem({
   onFeedback,
   onSendMessage,
   onToggleResearch,
+  startOfResearch,
 }: {
   className?: string;
   messageId: string;
@@ -134,20 +143,31 @@ function MessageListItem({
     options?: { interruptFeedback?: string },
   ) => void;
   onToggleResearch?: () => void;
+  startOfResearch?: boolean;
 }) {
   const message = useMessage(messageId);
-  const researchIds = useStore((state) => state.researchIds);
-  const startOfResearch = useMemo(() => {
-    return researchIds.includes(messageId);
-  }, [researchIds, messageId]);
+  
+  // Debug planner messages (only in browser)
+  if (message?.agent === "planner" && typeof window !== 'undefined') {
+    console.log(`[DEBUG] MessageListItem rendering planner message:`, {
+      messageId,
+      hasContent: !!message.content,
+      contentLength: message.content?.length || 0,
+      hasReasoning: !!message.reasoningContent,
+      isStreaming: message.isStreaming,
+      waitForFeedback
+    });
+  }
+  
   if (message) {
-    if (
-      message.role === "user" ||
-      message.agent === "coordinator" ||
-      message.agent === "planner" ||
-      message.agent === "podcast" ||
-      startOfResearch
-    ) {
+    // 检查消息是否应该渲染
+    if (!startOfResearch && 
+        message.role !== "user" && 
+        message.agent !== "coordinator" && 
+        message.agent !== "planner" && 
+        message.agent !== "podcast") {
+      return null;
+    }
       let content: React.ReactNode;
       if (message.agent === "planner") {
         content = (
@@ -200,26 +220,24 @@ function MessageListItem({
           </div>
         ) : null;
       }
-      if (content) {
-        return (
-          <motion.li
-            className="mt-10"
-            key={messageId}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{ transition: "all 0.2s ease-out" }}
-            transition={{
-              duration: 0.2,
-              ease: "easeOut",
-            }}
-          >
-            {content}
-          </motion.li>
-        );
-      }
-    }
-    return null;
+      return (
+      <motion.li
+        className="mt-10"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{ transition: "all 0.2s ease-out" }}
+        transition={{
+          duration: 0.2,
+          ease: "easeOut",
+        }}
+      >
+        {content}
+      </motion.li>
+    );
   }
+  
+  // 由于父组件已经过滤，这里不应该到达
+  return null;
 }
 
 function MessageBubble({
@@ -686,9 +704,9 @@ function PodcastCard({
 function ToolsDisplay({ tools }: { tools: string[] }) {
   return (
     <div className="mt-2 flex flex-wrap gap-1">
-      {tools.map((tool, index) => (
+      {tools.map((tool) => (
         <span
-          key={index}
+          key={tool}
           className="rounded-md bg-muted px-2 py-1 text-xs font-mono text-muted-foreground"
         >
           {tool}

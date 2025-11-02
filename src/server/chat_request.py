@@ -126,3 +126,14 @@ class EnhancePromptRequest(BaseModel):
     report_style: Optional[str] = Field(
         "academic", description="The style of the report"
     )
+    # Model settings
+    basic_model: Optional[dict] = Field(
+        None, description="Basic model configuration (baseUrl, model, apiKey)"
+    )
+    reasoning_model: Optional[dict] = Field(
+        None, description="Reasoning model configuration (baseUrl, model, apiKey)"
+    )
+    # Search engine settings
+    search_engine: Optional[dict] = Field(
+        None, description="Search engine configuration (engine, apiKey, includeImages, minScoreThreshold)"
+    )

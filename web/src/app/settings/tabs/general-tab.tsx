@@ -19,6 +19,7 @@ import {
 } from "~/components/ui/form";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { PasswordInput } from "~/components/ui/password-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Switch } from "~/components/ui/switch";
 import type { SettingsState } from "~/core/store";
@@ -49,19 +50,22 @@ const generalFormSchema = z.object({
     baseUrl: z.string().url().min(1, "Base URL is required"),
     model: z.string().min(1, "Model name is required"),
     apiKey: z.string(),
+    tokenLimit: z.number().min(1000, "Token limit must be at least 1000"),
   }),
   reasoningModel: z.object({
     baseUrl: z.string().url().min(1, "Base URL is required"),
     model: z.string().min(1, "Model name is required"),
     apiKey: z.string(),
+    tokenLimit: z.number().min(1000, "Token limit must be at least 1000"),
   }),
   // Search engine settings
-  searchEngine: z.object({
-    engine: z.string().min(1, "Search engine is required"),
-    apiKey: z.string(),
-    includeImages: z.boolean(),
-    minScoreThreshold: z.number().min(0).max(1, "Min score threshold must be between 0 and 1"),
-  }),
+    searchEngine: z.object({
+      engine: z.string().min(1, "Search engine is required"),
+      apiKey: z.string(),
+      includeImages: z.boolean(),
+      minScoreThreshold: z.number().min(0).max(1, "Min score threshold must be between 0 and 1"),
+      maxContentLength: z.number().min(1000, "Max content length must be at least 1000"),
+    }),
 });
 
 export const GeneralTab: Tab = ({
@@ -285,15 +289,38 @@ export const GeneralTab: Tab = ({
                   <FormItem>
                     <FormLabel>{t("basicModel.apiKey")}</FormLabel>
                     <FormControl>
-                      <Input
+                      <PasswordInput
                         className="w-full"
-                        type="password"
                         placeholder="sk-..."
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
                       {t("basicModel.apiKeyDescription")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="basicModel.tokenLimit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("basicModel.tokenLimit")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-60"
+                        type="number"
+                        min="1000"
+                        max="200000"
+                        placeholder="8000"
+                        value={field.value || ""}
+                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t("basicModel.tokenLimitDescription")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -344,15 +371,38 @@ export const GeneralTab: Tab = ({
                   <FormItem>
                     <FormLabel>{t("reasoningModel.apiKey")}</FormLabel>
                     <FormControl>
-                      <Input
+                      <PasswordInput
                         className="w-full"
-                        type="password"
                         placeholder="sk-..."
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
                       {t("reasoningModel.apiKeyDescription")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="reasoningModel.tokenLimit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("reasoningModel.tokenLimit")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-60"
+                        type="number"
+                        min="1000"
+                        max="200000"
+                        placeholder="8000"
+                        value={field.value || ""}
+                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t("reasoningModel.tokenLimitDescription")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -393,9 +443,8 @@ export const GeneralTab: Tab = ({
                   <FormItem>
                     <FormLabel>{t("searchEngine.apiKey")}</FormLabel>
                     <FormControl>
-                      <Input
+                      <PasswordInput
                         className="w-full"
-                        type="password"
                         placeholder="tvly-..."
                         {...field}
                       />
@@ -438,11 +487,36 @@ export const GeneralTab: Tab = ({
                         min="0"
                         max="1"
                         step="0.1"
-                        {...field}
+                        value={field.value || ""}
+                        onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
                       />
                     </FormControl>
                     <FormDescription>
                       {t("searchEngine.minScoreThresholdDescription")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="searchEngine.maxContentLength"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("searchEngine.maxContentLength")}</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="w-full"
+                        type="number"
+                        min="1000"
+                        max="20000"
+                        placeholder="5000"
+                        value={field.value || ""}
+                        onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t("searchEngine.maxContentLengthDescription")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

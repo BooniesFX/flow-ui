@@ -4,7 +4,7 @@
 
 import asyncio
 import json
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 import requests
@@ -24,6 +24,31 @@ def get_search_config():
 
 
 class EnhancedTavilySearchAPIWrapper(OriginalTavilySearchAPIWrapper):
+    def __init__(self, api_key: Optional[str] = None, postprocessor_params: Optional[Dict] = None, **kwargs):
+        # Always call parent __init__ to ensure proper pydantic initialization
+        # If we have a custom API key, temporarily store it and set tavily_api_key
+        if api_key:
+            # Create a temporary tavily_api_key to satisfy parent initialization
+            temp_kwargs = kwargs.copy()
+            temp_kwargs['tavily_api_key'] = api_key  # Pass as plain string
+            super().__init__(**temp_kwargs)
+            self._custom_api_key = api_key
+        else:
+            # Call parent __init__ which will handle tavily_api_key from environment
+            super().__init__(**kwargs)
+            self._custom_api_key = None
+        # Store postprocessor_params as a private attribute to avoid Pydantic validation
+        object.__setattr__(self, '_postprocessor_params', postprocessor_params)
+    
+    def _get_api_key(self) -> str:
+        """Get API key from custom key or fall back to environment."""
+        if self._custom_api_key:
+            return self._custom_api_key
+        # Fall back to parent's tavily_api_key
+        if hasattr(self, 'tavily_api_key'):
+            return self.tavily_api_key.get_secret_value()
+        raise ValueError("No API key available")
+    
     def raw_results(
         self,
         query: str,
@@ -37,7 +62,7 @@ class EnhancedTavilySearchAPIWrapper(OriginalTavilySearchAPIWrapper):
         include_image_descriptions: Optional[bool] = False,
     ) -> Dict:
         params = {
-            "api_key": self.tavily_api_key.get_secret_value(),
+            "api_key": self._get_api_key(),
             "query": query,
             "max_results": max_results,
             "search_depth": search_depth,
@@ -73,7 +98,7 @@ class EnhancedTavilySearchAPIWrapper(OriginalTavilySearchAPIWrapper):
         # Function to perform the API call
         async def fetch() -> str:
             params = {
-                "api_key": self.tavily_api_key.get_secret_value(),
+                "api_key": self._get_api_key(),
                 "query": query,
                 "max_results": max_results,
                 "search_depth": search_depth,
@@ -168,12 +193,18 @@ class EnhancedTavilySearchAPIWrapper(OriginalTavilySearchAPIWrapper):
             }
             clean_results.append(clean_result)
 
-        search_config = get_search_config()
+        # Use postprocessor_params if available, otherwise fall back to global config
+        if hasattr(self, '_postprocessor_params') and self._postprocessor_params:
+            min_score_threshold = self._postprocessor_params.get("min_score_threshold")
+            max_content_length_per_page = self._postprocessor_params.get("max_content_length_per_page")
+        else:
+            search_config = get_search_config()
+            min_score_threshold = search_config.get("min_score_threshold")
+            max_content_length_per_page = search_config.get("max_content_length_per_page")
+        
         clean_results = SearchResultPostProcessor(
-            min_score_threshold=search_config.get("min_score_threshold"),
-            max_content_length_per_page=search_config.get(
-                "max_content_length_per_page"
-            ),
+            min_score_threshold=min_score_threshold,
+            max_content_length_per_page=max_content_length_per_page,
         ).process_results(clean_results)
 
         return clean_results

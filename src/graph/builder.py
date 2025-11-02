@@ -1,6 +1,7 @@
 # Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 # SPDX-License-Identifier: MIT
 
+import logging
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from typing import Optional
@@ -21,12 +22,32 @@ from .types import State
 
 
 def continue_to_running_research_team(state: State):
+    logger = logging.getLogger(__name__)
+    logger.info("=" * 50)
+    logger.info("CONTINUE TO RUNNING RESEARCH TEAM")
+    logger.info("=" * 50)
     current_plan = state.get("current_plan")
-    if not current_plan or not current_plan.steps:
+    plan_iterations = state.get("plan_iterations", 0)
+    
+    # Log for debugging
+    logger.info(f"[DEBUG] continue_to_running_research_team: plan_iterations={plan_iterations}, current_plan_type={type(current_plan)}")
+    logger.info(f"[DEBUG] state keys: {list(state.keys())}")
+    
+    # Check if current_plan is string and log its content
+    if isinstance(current_plan, str):
+        logger.info(f"[DEBUG] current_plan is string, first 100 chars: {current_plan[:100]}")
+    elif hasattr(current_plan, 'steps'):
+        logger.info(f"[DEBUG] current_plan has {len(current_plan.steps)} steps")
+    
+    # Check if plan exists and has steps
+    if not current_plan or not hasattr(current_plan, 'steps') or not current_plan.steps:
+        logger.warning("No plan or steps found, returning to planner")
         return "planner"
 
+    # If all steps are completed, go to reporter instead of planner
     if all(step.execution_res for step in current_plan.steps):
-        return "planner"
+        logger.info("All steps completed, going to reporter")
+        return "reporter"
 
     # Find first incomplete step
     incomplete_step = None
@@ -36,11 +57,14 @@ def continue_to_running_research_team(state: State):
             break
 
     if not incomplete_step:
-        return "planner"
+        logger.info("No incomplete step found, going to reporter")
+        return "reporter"
 
     if incomplete_step.step_type == StepType.RESEARCH:
+        logger.info("Next step is RESEARCH")
         return "researcher"
     if incomplete_step.step_type == StepType.PROCESSING:
+        logger.info("Next step is PROCESSING")
         return "coder"
     return "planner"
 
@@ -61,7 +85,7 @@ def _build_base_graph():
     builder.add_conditional_edges(
         "research_team",
         continue_to_running_research_team,
-        ["planner", "researcher", "coder"],
+        ["planner", "researcher", "coder", "reporter"],
     )
     builder.add_edge("reporter", END)
     # Add conditional edges for coordinator to handle clarification flow

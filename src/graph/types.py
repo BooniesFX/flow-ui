@@ -1,7 +1,7 @@
 # Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 # SPDX-License-Identifier: MIT
 
-
+from typing import Optional
 from langgraph.graph import MessagesState
 
 from src.prompts.planner_model import Plan
@@ -37,3 +37,4 @@ class State(MessagesState):
 
     # Workflow control
     goto: str = "planner"  # Default next node
+    _interrupt_feedback: Optional[str] = None  # Store feedback from interrupt

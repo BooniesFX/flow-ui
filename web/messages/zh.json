@@ -52,14 +52,18 @@
         "baseUrl": "API基础URL",
         "model": "模型名称",
         "apiKey": "API密钥",
-        "apiKeyDescription": "您的API密钥将仅保存在浏览器本地存储中，不会发送到服务器"
+        "apiKeyDescription": "您的API密钥将仅保存在浏览器本地存储中，不会发送到服务器",
+        "tokenLimit": "Token限制",
+        "tokenLimitDescription": "单个请求的最大token数量，用于上下文管理"
       },
       "reasoningModel": {
         "title": "推理模型设置",
         "baseUrl": "API基础URL",
         "model": "模型名称",
         "apiKey": "API密钥",
-        "apiKeyDescription": "您的API密钥将仅保存在浏览器本地存储中，不会发送到服务器"
+        "apiKeyDescription": "您的API密钥将仅保存在浏览器本地存储中，不会发送到服务器",
+        "tokenLimit": "Token限制",
+        "tokenLimitDescription": "单个请求的最大token数量，用于上下文管理"
       },
       "searchEngine": {
         "title": "搜索引擎设置",
@@ -69,7 +73,9 @@
         "apiKeyDescription": "您的API密钥将仅保存在浏览器本地存储中，不会发送到服务器",
         "includeImages": "包含图片结果",
         "minScoreThreshold": "最小分数阈值",
-        "minScoreThresholdDescription": "过滤搜索结果的最小相关性分数（0-1之间）"
+        "minScoreThresholdDescription": "过滤搜索结果的最小相关性分数（0-1之间）",
+        "maxContentLength": "内容最大长度",
+        "maxContentLengthDescription": "每个搜索结果的最大字符数限制"
       }
     },
     "mcp": {

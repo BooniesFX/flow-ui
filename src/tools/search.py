@@ -24,6 +24,9 @@ from src.tools.decorators import create_logged_tool
 from src.tools.tavily_search.tavily_search_results_with_images import (
     TavilySearchWithImages,
 )
+from src.tools.tavily_search.tavily_search_api_wrapper import (
+    EnhancedTavilySearchAPIWrapper,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +46,11 @@ def get_search_config():
 
 
 # Get the selected search tool
-def get_web_search_tool(max_search_results: int):
+def get_web_search_tool(max_search_results: int, custom_search_engine_config=None):
     from src.config.context import get_custom_search_engine
     
     # Check for custom search engine configuration
-    custom_search_engine = get_custom_search_engine()
+    custom_search_engine = custom_search_engine_config or get_custom_search_engine()
     
     # Use custom configuration if available
     if custom_search_engine:
@@ -66,11 +69,24 @@ def get_web_search_tool(max_search_results: int):
         include_image_descriptions: Optional[bool] = (
             include_images and search_config.get("include_image_descriptions", True)
         )
+        
+        # Use custom API key if provided (support both camelCase and snake_case)
+        api_key = search_config.get("apiKey") or search_config.get("api_key", os.getenv("TAVILY_API_KEY", ""))
 
         logger.info(
-            f"Tavily search configuration loaded: include_domains={include_domains}, exclude_domains={exclude_domains}"
+            f"Tavily search configuration loaded: include_domains={include_domains}, exclude_domains={exclude_domains}, api_key_configured={bool(api_key)}"
         )
 
+        # Create API wrapper with custom API key and postprocessor params
+        postprocessor_params = {
+            "min_score_threshold": search_config.get("minScoreThreshold", 0.4),
+            "max_content_length_per_page": search_config.get("maxContentLength", 5000),
+        }
+        api_wrapper = EnhancedTavilySearchAPIWrapper(
+            api_key=api_key,
+            postprocessor_params=postprocessor_params
+        )
+        
         return LoggedTavilySearch(
             name="web_search",
             max_results=max_search_results,
@@ -79,6 +95,7 @@ def get_web_search_tool(max_search_results: int):
             include_image_descriptions=include_image_descriptions,
             include_domains=include_domains,
             exclude_domains=exclude_domains,
+            api_wrapper=api_wrapper,
         )
     elif selected_search_engine == SearchEngine.DUCKDUCKGO.value:
         return LoggedDuckDuckGoSearch(
@@ -86,8 +103,8 @@ def get_web_search_tool(max_search_results: int):
             num_results=max_search_results,
         )
     elif selected_search_engine == SearchEngine.BRAVE_SEARCH.value:
-        # Use custom API key if provided
-        api_key = search_config.get("api_key", os.getenv("BRAVE_SEARCH_API_KEY", ""))
+        # Use custom API key if provided (support both camelCase and snake_case)
+        api_key = search_config.get("apiKey") or search_config.get("api_key", os.getenv("BRAVE_SEARCH_API_KEY", ""))
         return LoggedBraveSearch(
             name="web_search",
             search_wrapper=BraveSearchWrapper(

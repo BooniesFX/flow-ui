@@ -51,6 +51,7 @@ class Configuration:
     mcp_settings: dict = None  # MCP settings, including dynamic loaded tools
     report_style: str = ReportStyle.ACADEMIC.value  # Report style
     enable_deep_thinking: bool = False  # Whether to enable deep thinking
+    search_engine: dict = None  # Search engine configuration
 
     @classmethod
     def from_runnable_config(

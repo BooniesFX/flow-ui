@@ -73,7 +73,7 @@ export const ResourceMentions = forwardRef<
               selectedIndex === index &&
                 "bg-secondary text-secondary-foreground",
             )}
-            key={index}
+            key={item.uri}
             onClick={() => selectItem(index)}
           >
             {item.title}

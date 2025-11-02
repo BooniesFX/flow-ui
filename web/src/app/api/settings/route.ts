@@ -71,13 +71,13 @@ function mapYAMLToUI(yamlConfig: Record<string, any>) {
       maxSearchResults: yamlConfig.GENERAL_SETTINGS?.maxSearchResults ?? 3,
       // Model settings
       basicModel: {
-        baseUrl: yamlConfig.BASIC_MODEL?.base_url ?? process.env.NEXT_PUBLIC_BASIC_MODEL_BASE_URL ?? "https://api-inference.modelscope.cn/v1",
-        model: yamlConfig.BASIC_MODEL?.model ?? process.env.NEXT_PUBLIC_BASIC_MODEL_NAME ?? "ZhipuAI/GLM-4.6",
+        baseUrl: yamlConfig.BASIC_MODEL?.base_url ?? process.env.NEXT_PUBLIC_BASIC_MODEL_BASE_URL ?? "",
+        model: yamlConfig.BASIC_MODEL?.model ?? process.env.NEXT_PUBLIC_BASIC_MODEL_NAME ?? "",
         apiKey: yamlConfig.BASIC_MODEL?.api_key ?? process.env.NEXT_PUBLIC_BASIC_MODEL_API_KEY ?? "",
       },
       reasoningModel: {
-        baseUrl: yamlConfig.REASONING_MODEL?.base_url ?? process.env.NEXT_PUBLIC_REASONING_MODEL_BASE_URL ?? "https://api-inference.modelscope.cn/v1",
-        model: yamlConfig.REASONING_MODEL?.model ?? process.env.NEXT_PUBLIC_REASONING_MODEL_NAME ?? "Qwen/Qwen3-235B-A22B-Thinking-2507",
+        baseUrl: yamlConfig.REASONING_MODEL?.base_url ?? process.env.NEXT_PUBLIC_REASONING_MODEL_BASE_URL ?? "",
+        model: yamlConfig.REASONING_MODEL?.model ?? process.env.NEXT_PUBLIC_REASONING_MODEL_NAME ?? "",
         apiKey: yamlConfig.REASONING_MODEL?.api_key ?? process.env.NEXT_PUBLIC_REASONING_MODEL_API_KEY ?? "",
       },
       // Search engine settings

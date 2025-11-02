@@ -3,7 +3,7 @@
 
 import json
 import logging
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from langchain.callbacks.manager import (
     AsyncCallbackManagerForToolRun,
@@ -105,8 +105,12 @@ class TavilySearchWithImages(TavilySearchResults):  # type: ignore[override, ove
     """
 
     api_wrapper: EnhancedTavilySearchAPIWrapper = Field(
-        default_factory=EnhancedTavilySearchAPIWrapper
+        default_factory=lambda: EnhancedTavilySearchAPIWrapper(postprocessor_params=None)
     )  # type: ignore[arg-type]
+    
+    api_key: Optional[str] = Field(default=None)
+    
+    postprocessor_params: Optional[Dict[str, Any]] = Field(default=None)
 
     def _run(
         self,
@@ -116,6 +120,10 @@ class TavilySearchWithImages(TavilySearchResults):  # type: ignore[override, ove
         """Use the tool."""
         # TODO: remove try/except, should be handled by BaseTool
         try:
+            # Update API wrapper with postprocessor_params if available
+            if self.postprocessor_params:
+                object.__setattr__(self.api_wrapper, '_postprocessor_params', self.postprocessor_params)
+            
             raw_results = self.api_wrapper.raw_results(
                 query,
                 self.max_results,
@@ -143,6 +151,10 @@ class TavilySearchWithImages(TavilySearchResults):  # type: ignore[override, ove
     ) -> Tuple[Union[List[Dict[str, str]], str], Dict]:
         """Use the tool asynchronously."""
         try:
+            # Update API wrapper with postprocessor_params if available
+            if self.postprocessor_params:
+                object.__setattr__(self.api_wrapper, '_postprocessor_params', self.postprocessor_params)
+            
             raw_results = await self.api_wrapper.raw_results_async(
                 query,
                 self.max_results,

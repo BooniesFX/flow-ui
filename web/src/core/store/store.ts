@@ -11,7 +11,7 @@ import type { Message, Resource } from "../messages";
 import { mergeMessage } from "../messages";
 import { parseJSON } from "../utils";
 
-import { getChatStreamSettings } from "./settings-store";
+import { getChatStreamSettings, useSettingsStore } from "./settings-store";
 
 const THREAD_ID = nanoid();
 
@@ -103,6 +103,13 @@ export async function sendMessage(
   }
 
   const settings = getChatStreamSettings();
+  
+  // Debug logging
+  if (typeof window !== 'undefined') {
+    console.log("[DEBUG] Frontend settings:", settings);
+    console.log("[DEBUG] Full store state:", useSettingsStore.getState());
+  }
+  
   const stream = chatStream(
     content ?? "[REPLAY]",
     {
@@ -120,6 +127,9 @@ export async function sendMessage(
       max_search_results: settings.maxSearchResults,
       report_style: settings.reportStyle,
       mcp_settings: settings.mcpSettings,
+      basic_model: settings.basicModel,
+      reasoning_model: settings.reasoningModel,
+      search_engine: settings.searchEngine,
     },
     options,
   );
@@ -131,9 +141,18 @@ export async function sendMessage(
       const { type, data } = event;
       messageId = data.id;
       let message: Message | undefined;
-      if (type === "tool_call_result") {
-        message = findMessageByToolCallId(data.tool_call_id);
-      } else if (!existsMessage(messageId)) {
+      // Debug logging (only in development or browser)
+      if (typeof window !== 'undefined') {
+        console.log(`[DEBUG] Stream event: ${type}`, data);
+      }
+      // For any event type, check if message exists, create if not
+      messageId = data.id;
+      message = getMessage(messageId);
+      if (!message) {
+        let interruptFeedback;
+        if (event.type === "interrupt" && "options" in data && data.options?.length) {
+          interruptFeedback = "interrupt";
+        }
         message = {
           id: messageId,
           threadId: data.thread_id,
@@ -146,16 +165,33 @@ export async function sendMessage(
           isStreaming: true,
           interruptFeedback,
         };
+        if (typeof window !== 'undefined') {
+          console.log(`[DEBUG] Creating new message for event ${event.type}:`, message);
+        }
         appendMessage(message);
       }
-      message ??= getMessage(messageId);
+      
       if (message) {
+        // Add special debug for planner messages
+        if (message.agent === "planner" && typeof window !== 'undefined') {
+          console.log(`[DEBUG] Processing planner message:`, {
+            messageId,
+            hasContent: !!message.content,
+            contentLength: message.content?.length || 0,
+            hasReasoning: !!message.reasoningContent,
+            reasoningLength: message.reasoningContent?.length || 0,
+            isStreaming: message.isStreaming,
+            eventType: event.type
+          });
+        }
         message = mergeMessage(message, event);
         updateMessage(message);
       }
     }
   } catch (error) {
-    console.error("Stream processing error:", error);
+    if (typeof window !== 'undefined') {
+      console.error("Stream processing error:", error);
+    }
     
     let errorMessage = "An error occurred while generating the response. Please try again.";
     if (error instanceof Error) {
@@ -165,25 +201,20 @@ export async function sendMessage(
         errorMessage = "Network connection failed. Please check your internet connection and try again.";
       } else if (error.message.includes("timeout")) {
         errorMessage = "Request timed out. Please try again.";
-      } else {
-        errorMessage = `Error: ${error.message}`;
       }
     }
     
-    toast.error(errorMessage);
-    
-    // Update message status with error information
-    // TODO: const isAborted = (error as Error).name === "AbortError";
-    if (messageId != null) {
-      const message = getMessage(messageId);
-      if (message?.isStreaming) {
-        message.isStreaming = false;
-        message.error = error instanceof Error ? error.message : "Unknown error occurred";
-        useStore.getState().updateMessage(message);
-      }
-    }
-    useStore.getState().setOngoingResearch(null);
+    appendMessage({
+      id: nanoid(),
+      threadId: THREAD_ID,
+      role: "assistant",
+      content: errorMessage,
+      contentChunks: [errorMessage],
+    });
   } finally {
+    if (typeof window !== 'undefined') {
+      console.log(`[DEBUG] Stream processing finished, total messages: ${useStore.getState().messageIds.length}`);
+    }
     setResponding(false);
   }
 }

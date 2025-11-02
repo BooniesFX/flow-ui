@@ -15,6 +15,10 @@ def set_custom_models(
     search_engine: Optional[Dict[str, Any]] = None,
 ):
     """Set custom model configurations for the current context."""
+    # Clear LLM cache when setting new configurations
+    from src.llms.llm import _llm_cache
+    _llm_cache.clear()
+    
     if basic_model is not None:
         _custom_basic_model.set(basic_model)
     if reasoning_model is not None:

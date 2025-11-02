@@ -155,7 +155,7 @@ export function NodeDetail({
         </div>
         <div className="grid grid-cols-1 gap-2">
           {results.map((result: any, index: number) => (
-            <div key={index} className="p-3 bg-muted rounded-md">
+            <div key={`search-${index}-${result.title}`} className="p-3 bg-muted rounded-md">
               <div className="font-medium">{result.title}</div>
               <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
                 {result.content}
@@ -249,7 +249,7 @@ export function NodeDetail({
         </div>
         <div className="grid grid-cols-1 gap-2">
           {documents.map((doc: any, index: number) => (
-            <div key={index} className="p-3 bg-muted rounded-md">
+            <div key={`doc-${index}-${doc.title}`} className="p-3 bg-muted rounded-md">
               <div className="font-medium">{doc.title}</div>
               <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
                 {doc.content}

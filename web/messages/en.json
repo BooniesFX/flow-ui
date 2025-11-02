@@ -52,14 +52,18 @@
         "baseUrl": "API Base URL",
         "model": "Model Name",
         "apiKey": "API Key",
-        "apiKeyDescription": "Your API key will be stored only in browser local storage and will not be sent to the server"
+        "apiKeyDescription": "Your API key will be stored only in browser local storage and will not be sent to the server",
+        "tokenLimit": "Token Limit",
+        "tokenLimitDescription": "Maximum token count per request for context management"
       },
       "reasoningModel": {
         "title": "Reasoning Model Settings",
         "baseUrl": "API Base URL",
         "model": "Model Name",
         "apiKey": "API Key",
-        "apiKeyDescription": "Your API key will be stored only in browser local storage and will not be sent to the server"
+        "apiKeyDescription": "Your API key will be stored only in browser local storage and will not be sent to the server",
+        "tokenLimit": "Token Limit",
+        "tokenLimitDescription": "Maximum token count per request for context management"
       },
       "searchEngine": {
         "title": "Search Engine Settings",
@@ -69,7 +73,9 @@
         "apiKeyDescription": "Your API key will be stored only in browser local storage and will not be sent to the server",
         "includeImages": "Include Image Results",
         "minScoreThreshold": "Min Score Threshold",
-        "minScoreThresholdDescription": "Minimum relevance score for filtering search results (between 0-1)"
+        "minScoreThresholdDescription": "Minimum relevance score for filtering search results (between 0-1)",
+        "maxContentLength": "Max Content Length",
+        "maxContentLengthDescription": "Maximum character count per search result"
       }
     },
     "mcp": {

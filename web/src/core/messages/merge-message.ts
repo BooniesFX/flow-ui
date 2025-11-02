@@ -44,9 +44,17 @@ function mergeTextMessage(message: Message, event: MessageChunkEvent) {
     message.contentChunks.push(event.data.content);
   }
   if (event.data.reasoning_content) {
-    message.reasoningContent = (message.reasoningContent ?? "") + event.data.reasoning_content;
-    message.reasoningContentChunks = message.reasoningContentChunks ?? [];
-    message.reasoningContentChunks.push(event.data.reasoning_content);
+    // Only append reasoning content if it's not already present
+    // This prevents duplication when reasoning content is sent multiple times
+    const currentContent = message.reasoningContent ?? "";
+    const newContent = event.data.reasoning_content;
+    
+    // Check if the new content is already in the current content
+    if (!currentContent.includes(newContent)) {
+      message.reasoningContent = currentContent + newContent;
+      message.reasoningContentChunks = message.reasoningContentChunks ?? [];
+      message.reasoningContentChunks.push(newContent);
+    }
   }
 }
 function convertToolChunkArgs(args: string) {

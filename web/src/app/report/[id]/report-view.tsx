@@ -272,7 +272,13 @@ export function ReportView({ report }: ReportViewProps) {
 
           {/* Main content */}
           <div className="prose prose-gray max-w-none">
-            <Markdown>{report.content}</Markdown>
+            <Markdown>{(() => {
+              const lines = report.content.split('\n');
+              if (lines[0]?.startsWith('# ') && lines[0].substring(2) === report.title) {
+                return lines.slice(1).join('\n');
+              }
+              return report.content;
+            })()}</Markdown>
           </div>
 
       {/* Sources section */}

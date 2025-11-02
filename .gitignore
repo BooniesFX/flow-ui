@@ -28,3 +28,4 @@ conf.yaml
 coverage.xml
 coverage/
 reports/
+openspec/

@@ -5,10 +5,12 @@
 
 import { useCallback, useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Download, HeadphonesIcon, Play, Pause, List } from "lucide-react";
+import { ArrowLeft, Download, HeadphonesIcon, Play, Pause, List, Settings, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { Badge } from "~/components/ui/badge";
+import { Slider } from "~/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Markdown } from "~/components/deer-flow/markdown";
 import { useRouter } from "next/navigation";
 
@@ -51,6 +53,14 @@ export function ReportView({ report }: ReportViewProps) {
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [showToc, setShowToc] = useState(true);
+  
+  // TTS Settings state
+  const [showTtsSettings, setShowTtsSettings] = useState(false);
+  const [ttsModel, setTtsModel] = useState("tts-1");
+  const [voiceType, setVoiceType] = useState("alloy");
+  const [speedRatio, setSpeedRatio] = useState([1.0]);
+  const [volumeRatio, setVolumeRatio] = useState([1.0]);
+  const [pitchRatio, setPitchRatio] = useState([1.0]);
 
   const formatDate = useCallback((dateString: string) => {
     try {
@@ -130,6 +140,13 @@ export function ReportView({ report }: ReportViewProps) {
         },
         body: JSON.stringify({
           content: report.content,
+          tts_settings: {
+            model: ttsModel,
+            voice_type: voiceType,
+            speed_ratio: speedRatio[0],
+            volume_ratio: volumeRatio[0],
+            pitch_ratio: pitchRatio[0],
+          },
         }),
       });
 
@@ -251,6 +268,15 @@ export function ReportView({ report }: ReportViewProps) {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setShowTtsSettings(!showTtsSettings)}
+                className="flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                {t("ttsSettings") || "TTS设置"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleTogglePlay}
                 disabled={isGeneratingPodcast}
                 className="flex items-center gap-2"
@@ -267,6 +293,107 @@ export function ReportView({ report }: ReportViewProps) {
               </Button>
             </div>
           </div>
+
+          {/* TTS Settings Panel */}
+          {showTtsSettings && (
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">{t("ttsSettings") || "TTS设置"}</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTtsSettings(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* TTS Model */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    {t("ttsModel") || "TTS模型"}
+                  </label>
+                  <Select value={ttsModel} onValueChange={setTtsModel}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tts-1">tts-1</SelectItem>
+                      <SelectItem value="tts-1-hd">tts-1-hd</SelectItem>
+                      <SelectItem value="azure-tts">azure-tts</SelectItem>
+                      <SelectItem value="edge-tts">edge-tts</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Voice Type */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    {t("voiceType") || "声音类型"}
+                  </label>
+                  <Select value={voiceType} onValueChange={setVoiceType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="alloy">Alloy</SelectItem>
+                      <SelectItem value="echo">Echo</SelectItem>
+                      <SelectItem value="fable">Fable</SelectItem>
+                      <SelectItem value="onyx">Onyx</SelectItem>
+                      <SelectItem value="nova">Nova</SelectItem>
+                      <SelectItem value="shimmer">Shimmer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Speed Ratio */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    {t("speedRatio") || "语速"}: {speedRatio[0].toFixed(1)}x
+                  </label>
+                  <Slider
+                    value={speedRatio}
+                    onValueChange={setSpeedRatio}
+                    min={0.5}
+                    max={2.0}
+                    step={0.1}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Volume Ratio */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    {t("volumeRatio") || "音量"}: {volumeRatio[0].toFixed(1)}x
+                  </label>
+                  <Slider
+                    value={volumeRatio}
+                    onValueChange={setVolumeRatio}
+                    min={0.5}
+                    max={1.5}
+                    step={0.1}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Pitch Ratio */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2">
+                    {t("pitchRatio") || "音高"}: {pitchRatio[0].toFixed(1)}x
+                  </label>
+                  <Slider
+                    value={pitchRatio}
+                    onValueChange={setPitchRatio}
+                    min={0.5}
+                    max={1.5}
+                    step={0.1}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <Separator className="mb-6" />
 

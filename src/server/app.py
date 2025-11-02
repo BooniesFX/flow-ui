@@ -494,6 +494,73 @@ def _make_event(event_type: str, data: dict[str, any]):
         return f"event: error\ndata: {error_data}\n\n"
 
 
+@app.post("/api/podcast/generate")
+async def generate_podcast(request: GeneratePodcastRequest):
+    """Generate a podcast from given report content."""
+    try:
+        # Use different TTS models based on user selection
+        if request.model in ["tts-1", "tts-1-hd"]:
+            # Volcengine TTS
+            app_id = get_str_env("VOLCENGINE_TTS_APPID", "")
+            if not app_id:
+                raise HTTPException(status_code=400, detail="VOLCENGINE_TTS_APPID is not set")
+            access_token = get_str_env("VOLCENGINE_TTS_ACCESS_TOKEN", "")
+            if not access_token:
+                raise HTTPException(
+                    status_code=400, detail="VOLCENGINE_TTS_ACCESS_TOKEN is not set"
+                )
+
+            cluster = get_str_env("VOLCENGINE_TTS_CLUSTER", "volcano_tts")
+            
+            tts_client = VolcengineTTS(
+                appid=app_id,
+                access_token=access_token,
+                cluster=cluster,
+                voice_type=request.voice_type,
+            )
+            
+            # Call the TTS API
+            result = tts_client.text_to_speech(
+                text=request.content,
+                voice_type=request.voice_type,
+                speed_ratio=request.speed_ratio,
+                volume_ratio=request.volume_ratio,
+                pitch_ratio=request.pitch_ratio,
+            )
+
+            if not result["success"]:
+                raise HTTPException(status_code=500, detail=str(result["error"]))
+
+            # Decode the base64 audio data
+            audio_data = base64.b64decode(result["audio_data"])
+
+            # Return the audio file
+            return Response(
+                content=audio_data,
+                media_type="audio/mp3",
+                headers={"Content-Disposition": "attachment; filename=podcast.mp3"},
+            )
+        
+        elif request.model == "azure-tts":
+            # Azure TTS implementation (placeholder)
+            # TODO: Implement Azure TTS
+            raise HTTPException(status_code=501, detail="Azure TTS not yet implemented")
+            
+        elif request.model == "edge-tts":
+            # Edge TTS implementation (placeholder)
+            # TODO: Implement Edge TTS
+            raise HTTPException(status_code=501, detail="Edge TTS not yet implemented")
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown TTS model: {request.model}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error in TTS endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL)
+
+
 @app.post("/api/tts")
 async def text_to_speech(request: TTSRequest):
     """Convert text to speech using volcengine TTS API."""
@@ -550,18 +617,6 @@ async def text_to_speech(request: TTSRequest):
         raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL)
 
 
-@app.post("/api/podcast/generate")
-async def generate_podcast(request: GeneratePodcastRequest):
-    try:
-        report_content = request.content
-        print(report_content)
-        workflow = build_podcast_graph()
-        final_state = workflow.invoke({"input": report_content})
-        audio_bytes = final_state["output"]
-        return Response(content=audio_bytes, media_type="audio/mp3")
-    except Exception as e:
-        logger.exception(f"Error occurred during podcast generation: {str(e)}")
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL)
 
 
 @app.post("/api/ppt/generate")

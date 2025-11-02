@@ -104,6 +104,13 @@ class TTSRequest(BaseModel):
 
 class GeneratePodcastRequest(BaseModel):
     content: str = Field(..., description="The content of the podcast")
+    model: Optional[str] = Field("tts-1", description="The TTS model to use")
+    voice_type: Optional[str] = Field(
+        "alloy", description="The voice type to use"
+    )
+    speed_ratio: Optional[float] = Field(1.0, description="Speech speed ratio")
+    volume_ratio: Optional[float] = Field(1.0, description="Speech volume ratio")
+    pitch_ratio: Optional[float] = Field(1.0, description="Speech pitch ratio")
 
 
 class GeneratePPTRequest(BaseModel):

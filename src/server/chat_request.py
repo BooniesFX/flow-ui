@@ -88,6 +88,7 @@ class ChatRequest(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str = Field(..., description="The text to convert to speech")
+    model: Optional[str] = Field("tts-1", description="The TTS model to use")
     voice_type: Optional[str] = Field(
         "BV700_V2_streaming", description="The voice type to use"
     )
@@ -100,6 +101,11 @@ class TTSRequest(BaseModel):
         1, description="Whether to use frontend processing"
     )
     frontend_type: Optional[str] = Field("unitTson", description="Frontend type")
+    siliconflow_api_key: Optional[str] = Field(None, description="API key for SiliconFlow TTS service")
+    siliconflow_model: Optional[str] = Field("fishaudio/fish-speech-1.4", description="SiliconFlow TTS model to use")
+    siliconflow_voice: Optional[str] = Field("alex", description="SiliconFlow voice to use")
+    siliconflow_speed: Optional[float] = Field(1.0, description="SiliconFlow speech speed (0.25-4.0)")
+    siliconflow_gain: Optional[float] = Field(0.0, description="SiliconFlow audio gain in dB (-10 to 10)")
 
 
 class GeneratePodcastRequest(BaseModel):
@@ -111,6 +117,16 @@ class GeneratePodcastRequest(BaseModel):
     speed_ratio: Optional[float] = Field(1.0, description="Speech speed ratio")
     volume_ratio: Optional[float] = Field(1.0, description="Speech volume ratio")
     pitch_ratio: Optional[float] = Field(1.0, description="Speech pitch ratio")
+    api_key: Optional[str] = Field(None, description="API key for TTS service")
+    endpoint: Optional[str] = Field(None, description="Endpoint URL for TTS service")
+    siliconflow_api_key: Optional[str] = Field(None, description="API key for SiliconFlow TTS service")
+    siliconflow_model: Optional[str] = Field("fishaudio/fish-speech-1.4", description="SiliconFlow TTS model to use")
+    siliconflow_voice: Optional[str] = Field("alex", description="SiliconFlow voice to use")
+    siliconflow_voice2: Optional[str] = Field("anna", description="Second SiliconFlow voice for dialogue")
+    siliconflow_speed: Optional[float] = Field(1.0, description="SiliconFlow speech speed (0.25-4.0)")
+    siliconflow_gain: Optional[float] = Field(0.0, description="SiliconFlow audio gain in dB (-10 to 10)")
+    basic_model: Optional[dict] = Field(None, description="Basic model configuration for script generation")
+    reasoning_model: Optional[dict] = Field(None, description="Reasoning model configuration for script generation")
 
 
 class GeneratePPTRequest(BaseModel):

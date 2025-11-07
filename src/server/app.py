@@ -52,6 +52,7 @@ from src.server.rag_request import (
     RAGResourcesResponse,
 )
 from src.tools import VolcengineTTS
+from src.tools.siliconflow_tts import SiliconFlowTTS
 from src.utils.json_utils import sanitize_args
 
 logger = logging.getLogger(__name__)
@@ -496,11 +497,118 @@ def _make_event(event_type: str, data: dict[str, any]):
 
 @app.post("/api/podcast/generate")
 async def generate_podcast(request: GeneratePodcastRequest):
-    """Generate a podcast from given report content."""
+    """Generate a conversational podcast from given report content."""
     try:
-        # Use different TTS models based on user selection
-        if request.model in ["tts-1", "tts-1-hd"]:
-            # Volcengine TTS
+        # Set environment variables for TTS configuration
+        if request.siliconflow_api_key:
+            os.environ["SILICONFLOW_API_KEY"] = request.siliconflow_api_key
+        if request.model:
+            os.environ["SILICONFLOW_MODEL"] = request.model
+        if request.siliconflow_voice:
+            os.environ["SILICONFLOW_VOICE"] = request.siliconflow_voice
+        if request.siliconflow_voice2:
+            os.environ["SILICONFLOW_VOICE2"] = request.siliconflow_voice2
+        
+        # Set up LLM configuration using context variables
+        from src.config.context import set_custom_models
+        
+        basic_model_config = None
+        reasoning_model_config = None
+        
+        if request.basic_model:
+            print(f"Received basic_model config: {request.basic_model}")
+            # Convert frontend format to backend format
+            basic_model_config = {
+                "api_key": request.basic_model.get("apiKey"),
+                "base_url": request.basic_model.get("baseUrl"),
+                "model": request.basic_model.get("model"),
+                "token_limit": request.basic_model.get("tokenLimit", 8000),
+            }
+            # Remove None values
+            basic_model_config = {k: v for k, v in basic_model_config.items() if v is not None}
+            print(f"Processed basic_model_config: {basic_model_config}")
+        
+        if request.reasoning_model:
+            reasoning_model_config = {
+                "api_key": request.reasoning_model.get("apiKey"),
+                "base_url": request.reasoning_model.get("baseUrl"),
+                "model": request.reasoning_model.get("model"),
+                "token_limit": request.reasoning_model.get("tokenLimit", 8000),
+            }
+            # Remove None values
+            reasoning_model_config = {k: v for k, v in reasoning_model_config.items() if v is not None}
+        
+        # Set the custom model configurations in context
+        set_custom_models(
+            basic_model=basic_model_config,
+            reasoning_model=reasoning_model_config
+        )
+        
+        # Use the podcast workflow to generate conversational podcast
+        from src.podcast.graph.builder import build_graph
+        
+        workflow = build_graph()
+        
+        # Generate podcast using the workflow
+        final_state = workflow.invoke({"input": request.content})
+        
+        if "output" not in final_state:
+            raise HTTPException(status_code=500, detail="Failed to generate podcast audio")
+        
+        # Return the generated audio
+        return Response(
+            content=final_state["output"],
+            media_type="audio/mp3",
+            headers={"Content-Disposition": "attachment; filename=podcast.mp3"},
+        )
+
+    except HTTPException:
+        raise
+
+
+@app.post("/api/tts")
+async def text_to_speech(request: TTSRequest):
+    """Convert text to speech using TTS API."""
+    try:
+        # Handle different TTS models
+        if request.model in ["FunAudioLLM/CosyVoice2-0.5B", "fnlp/MOSS-TTSD-v0.5"]:
+            # SiliconFlow TTS
+            api_key = request.siliconflow_api_key if request.siliconflow_api_key else get_str_env("SILICONFLOW_API_KEY", "")
+            if not api_key:
+                raise HTTPException(status_code=400, detail="SILICONFLOW_API_KEY is not set")
+            
+            tts_client = SiliconFlowTTS(
+                api_key=api_key,
+                model=request.model,
+                voice=request.siliconflow_voice,
+            )
+            
+            # Call the TTS API
+            result = tts_client.text_to_speech(
+                text=request.text[:1024],
+                response_format=request.encoding,
+                speed=request.siliconflow_speed,
+                gain=request.siliconflow_gain,
+            )
+            
+        elif request.siliconflow_api_key:
+            # Legacy SiliconFlow TTS support
+            # For SiliconFlow, we need to combine the model and voice correctly
+            full_voice = f"{request.siliconflow_model}:{request.siliconflow_voice}"
+            tts_client = SiliconFlowTTS(
+                api_key=request.siliconflow_api_key,
+                model=request.siliconflow_model,
+                voice=request.siliconflow_voice,
+            )
+            # Call the TTS API
+            result = tts_client.text_to_speech(
+                text=request.text[:1024],
+                response_format=request.encoding,
+                speed=request.siliconflow_speed,
+                gain=request.siliconflow_gain,
+            )
+        else:
+            # Use Volcengine TTS as default
             app_id = get_str_env("VOLCENGINE_TTS_APPID", "")
             if not app_id:
                 raise HTTPException(status_code=400, detail="VOLCENGINE_TTS_APPID is not set")
@@ -511,95 +619,36 @@ async def generate_podcast(request: GeneratePodcastRequest):
                 )
 
             cluster = get_str_env("VOLCENGINE_TTS_CLUSTER", "volcano_tts")
-            
+            voice_type = get_str_env("VOLCENGINE_TTS_VOICE_TYPE", "BV700_V2_streaming")
+
             tts_client = VolcengineTTS(
                 appid=app_id,
                 access_token=access_token,
                 cluster=cluster,
-                voice_type=request.voice_type,
+                voice_type=voice_type,
             )
-            
             # Call the TTS API
             result = tts_client.text_to_speech(
-                text=request.content,
-                voice_type=request.voice_type,
+                text=request.text[:1024],
+                encoding=request.encoding,
                 speed_ratio=request.speed_ratio,
                 volume_ratio=request.volume_ratio,
                 pitch_ratio=request.pitch_ratio,
+                text_type=request.text_type,
+                with_frontend=request.with_frontend,
+                frontend_type=request.frontend_type,
             )
-
-            if not result["success"]:
-                raise HTTPException(status_code=500, detail=str(result["error"]))
-
-            # Decode the base64 audio data
-            audio_data = base64.b64decode(result["audio_data"])
-
-            # Return the audio file
-            return Response(
-                content=audio_data,
-                media_type="audio/mp3",
-                headers={"Content-Disposition": "attachment; filename=podcast.mp3"},
-            )
-        
-        elif request.model == "azure-tts":
-            # Azure TTS implementation (placeholder)
-            # TODO: Implement Azure TTS
-            raise HTTPException(status_code=501, detail="Azure TTS not yet implemented")
-            
-        elif request.model == "edge-tts":
-            # Edge TTS implementation (placeholder)
-            # TODO: Implement Edge TTS
-            raise HTTPException(status_code=501, detail="Edge TTS not yet implemented")
-            
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown TTS model: {request.model}")
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error in TTS endpoint: {str(e)}")
-        raise HTTPException(status_code=500, detail=INTERNAL_SERVER_ERROR_DETAIL)
-
-
-@app.post("/api/tts")
-async def text_to_speech(request: TTSRequest):
-    """Convert text to speech using volcengine TTS API."""
-    app_id = get_str_env("VOLCENGINE_TTS_APPID", "")
-    if not app_id:
-        raise HTTPException(status_code=400, detail="VOLCENGINE_TTS_APPID is not set")
-    access_token = get_str_env("VOLCENGINE_TTS_ACCESS_TOKEN", "")
-    if not access_token:
-        raise HTTPException(
-            status_code=400, detail="VOLCENGINE_TTS_ACCESS_TOKEN is not set"
-        )
-
-    try:
-        cluster = get_str_env("VOLCENGINE_TTS_CLUSTER", "volcano_tts")
-        voice_type = get_str_env("VOLCENGINE_TTS_VOICE_TYPE", "BV700_V2_streaming")
-
-        tts_client = VolcengineTTS(
-            appid=app_id,
-            access_token=access_token,
-            cluster=cluster,
-            voice_type=voice_type,
-        )
-        # Call the TTS API
-        result = tts_client.text_to_speech(
-            text=request.text[:1024],
-            encoding=request.encoding,
-            speed_ratio=request.speed_ratio,
-            volume_ratio=request.volume_ratio,
-            pitch_ratio=request.pitch_ratio,
-            text_type=request.text_type,
-            with_frontend=request.with_frontend,
-            frontend_type=request.frontend_type,
-        )
 
         if not result["success"]:
             raise HTTPException(status_code=500, detail=str(result["error"]))
 
-        # Decode the base64 audio data
-        audio_data = base64.b64decode(result["audio_data"])
+        # Handle audio data based on TTS provider
+        if request.siliconflow_api_key:
+            # SiliconFlow returns raw audio data
+            audio_data = result["audio_data"]
+        else:
+            # Volcengine returns base64 encoded audio data
+            audio_data = base64.b64decode(result["audio_data"])
 
         # Return the audio file
         return Response(

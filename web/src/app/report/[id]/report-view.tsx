@@ -12,7 +12,9 @@ import { Badge } from "~/components/ui/badge";
 import { Slider } from "~/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Markdown } from "~/components/deer-flow/markdown";
+import { TtsSetupDialog } from "~/components/deer-flow/tts-setup-dialog";
 import { useRouter } from "next/navigation";
+import { useSettingsStore } from "~/core/store/settings-store";
 
 interface Report {
   id: string;
@@ -53,14 +55,52 @@ export function ReportView({ report }: ReportViewProps) {
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [showToc, setShowToc] = useState(true);
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   
   // TTS Settings state
   const [showTtsSettings, setShowTtsSettings] = useState(false);
-  const [ttsModel, setTtsModel] = useState("tts-1");
-  const [voiceType, setVoiceType] = useState("alloy");
-  const [speedRatio, setSpeedRatio] = useState([1.0]);
-  const [volumeRatio, setVolumeRatio] = useState([1.0]);
-  const [pitchRatio, setPitchRatio] = useState([1.0]);
+  const [ttsModel, setTtsModel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ttsModel');
+      return saved || "FunAudioLLM/CosyVoice2-0.5B";
+    }
+    return "FunAudioLLM/CosyVoice2-0.5B";
+  });
+  const [siliconflowApiKey, setSiliconflowApiKey] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('siliconflowApiKey');
+      return saved || "";
+    }
+    return "";
+  });
+  const [siliconflowVoice, setSiliconflowVoice] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('siliconflowVoice');
+      return saved || "alex";
+    }
+    return "alex";
+  });
+  const [siliconflowVoice2, setSiliconflowVoice2] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('siliconflowVoice2');
+      return saved || "anna";
+    }
+    return "anna";
+  });
+  const [siliconflowSpeed, setSiliconflowSpeed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('siliconflowSpeed');
+      return saved ? [parseFloat(saved)] : [1.0];
+    }
+    return [1.0];
+  });
+  const [siliconflowGain, setSiliconflowGain] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('siliconflowGain');
+      return saved ? [parseFloat(saved)] : [0.0];
+    }
+    return [0.0];
+  });
 
   const formatDate = useCallback((dateString: string) => {
     try {
@@ -133,6 +173,13 @@ export function ReportView({ report }: ReportViewProps) {
     setIsGeneratingPodcast(true);
     try {
       // Call API to generate podcast
+      // Get user's model configuration
+      const settings = useSettingsStore.getState();
+      const modelConfig = {
+        basic_model: settings.general.basicModel,
+        reasoning_model: settings.general.reasoningModel,
+      };
+
       const response = await fetch("http://localhost:8000/api/podcast/generate", {
         method: "POST",
         headers: {
@@ -140,13 +187,14 @@ export function ReportView({ report }: ReportViewProps) {
         },
         body: JSON.stringify({
           content: report.content,
-          tts_settings: {
-            model: ttsModel,
-            voice_type: voiceType,
-            speed_ratio: speedRatio[0],
-            volume_ratio: volumeRatio[0],
-            pitch_ratio: pitchRatio[0],
-          },
+          model: ttsModel,
+          siliconflow_api_key: siliconflowApiKey || undefined,
+          siliconflow_model: ttsModel,
+          siliconflow_voice: siliconflowVoice || undefined,
+          siliconflow_voice2: siliconflowVoice2 || undefined,
+          siliconflow_speed: siliconflowSpeed[0] || undefined,
+          siliconflow_gain: siliconflowGain[0] || undefined,
+          ...modelConfig,
         }),
       });
 
@@ -157,11 +205,21 @@ export function ReportView({ report }: ReportViewProps) {
         // Play the audio
         const audio = new Audio(audioUrl);
         audio.play();
+        setAudio(audio);
         setIsPlaying(true);
         
         audio.onended = () => {
           setIsPlaying(false);
+          setAudio(null);
           URL.revokeObjectURL(audioUrl);
+        };
+        
+        // Clean up on unmount
+        return () => {
+          if (audio) {
+            audio.pause();
+            URL.revokeObjectURL(audioUrl);
+          }
         };
       }
     } catch (error) {
@@ -174,14 +232,12 @@ export function ReportView({ report }: ReportViewProps) {
   const handleTogglePlay = useCallback(() => {
     if (isPlaying) {
       // Pause audio
-      const audio = document.querySelector("audio") as HTMLAudioElement;
       if (audio) {
         audio.pause();
         setIsPlaying(false);
       }
     } else {
       // Resume or start audio
-      const audio = document.querySelector("audio") as HTMLAudioElement;
       if (audio) {
         audio.play();
         setIsPlaying(true);
@@ -189,7 +245,18 @@ export function ReportView({ report }: ReportViewProps) {
         handleGeneratePodcast();
       }
     }
-  }, [isPlaying, handleGeneratePodcast]);
+  }, [isPlaying, audio, handleGeneratePodcast]);
+  
+  const handleStop = useCallback(() => {
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      setIsPlaying(false);
+      setAudio(null);
+      // Clean up the audio URL
+      URL.revokeObjectURL(audio.src);
+    }
+  }, [audio]);
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -268,132 +335,44 @@ export function ReportView({ report }: ReportViewProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowTtsSettings(!showTtsSettings)}
+                onClick={() => setShowTtsSettings(true)}
                 className="flex items-center gap-2"
               >
                 <Settings className="w-4 h-4" />
                 {t("ttsSettings") || "TTS设置"}
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleTogglePlay}
-                disabled={isGeneratingPodcast}
-                className="flex items-center gap-2"
-              >
-                {isGeneratingPodcast ? (
-                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : isPlaying ? (
-                  <Pause className="w-4 h-4" />
-                ) : (
-                  <Play className="w-4 h-4" />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTogglePlay}
+                  disabled={isGeneratingPodcast}
+                  className="flex items-center gap-2"
+                >
+                  {isGeneratingPodcast ? (
+                    <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : isPlaying ? (
+                    <Pause className="w-4 h-4" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                  <HeadphonesIcon className="w-4 h-4" />
+                  {isGeneratingPodcast ? t("generating") : isPlaying ? t("pause") : t("playPodcast")}
+                </Button>
+                {isPlaying && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStop}
+                    className="flex items-center gap-2"
+                  >
+                    <span className="w-4 h-4 flex items-center justify-center">⏹</span>
+                    {t("stop") || "Stop"}
+                  </Button>
                 )}
-                <HeadphonesIcon className="w-4 h-4" />
-                {isGeneratingPodcast ? t("generating") : isPlaying ? t("pause") : t("playPodcast")}
-              </Button>
+              </div>
             </div>
           </div>
-
-          {/* TTS Settings Panel */}
-          {showTtsSettings && (
-            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">{t("ttsSettings") || "TTS设置"}</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowTtsSettings(false)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* TTS Model */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    {t("ttsModel") || "TTS模型"}
-                  </label>
-                  <Select value={ttsModel} onValueChange={setTtsModel}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tts-1">tts-1</SelectItem>
-                      <SelectItem value="tts-1-hd">tts-1-hd</SelectItem>
-                      <SelectItem value="azure-tts">azure-tts</SelectItem>
-                      <SelectItem value="edge-tts">edge-tts</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Voice Type */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    {t("voiceType") || "声音类型"}
-                  </label>
-                  <Select value={voiceType} onValueChange={setVoiceType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="alloy">Alloy</SelectItem>
-                      <SelectItem value="echo">Echo</SelectItem>
-                      <SelectItem value="fable">Fable</SelectItem>
-                      <SelectItem value="onyx">Onyx</SelectItem>
-                      <SelectItem value="nova">Nova</SelectItem>
-                      <SelectItem value="shimmer">Shimmer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Speed Ratio */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    {t("speedRatio") || "语速"}: {speedRatio[0].toFixed(1)}x
-                  </label>
-                  <Slider
-                    value={speedRatio}
-                    onValueChange={setSpeedRatio}
-                    min={0.5}
-                    max={2.0}
-                    step={0.1}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Volume Ratio */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    {t("volumeRatio") || "音量"}: {volumeRatio[0].toFixed(1)}x
-                  </label>
-                  <Slider
-                    value={volumeRatio}
-                    onValueChange={setVolumeRatio}
-                    min={0.5}
-                    max={1.5}
-                    step={0.1}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Pitch Ratio */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-2">
-                    {t("pitchRatio") || "音高"}: {pitchRatio[0].toFixed(1)}x
-                  </label>
-                  <Slider
-                    value={pitchRatio}
-                    onValueChange={setPitchRatio}
-                    min={0.5}
-                    max={1.5}
-                    step={0.1}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
 
           <Separator className="mb-6" />
 
@@ -461,8 +440,39 @@ export function ReportView({ report }: ReportViewProps) {
               </div>
             </>
           )}
+          </div>
+          
+          <TtsSetupDialog
+            open={showTtsSettings}
+            onOpenChange={setShowTtsSettings}
+            onSettingsSave={(settings) => {
+              setTtsModel(settings.model);
+              setSiliconflowApiKey(settings.siliconflowApiKey);
+              setSiliconflowVoice(settings.siliconflowVoice);
+              setSiliconflowVoice2(settings.siliconflowVoice2 || settings.siliconflowVoice);
+              setSiliconflowSpeed([settings.siliconflowSpeed]);
+              setSiliconflowGain([settings.siliconflowGain]);
+              
+              // Save to localStorage
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('ttsModel', settings.model);
+                localStorage.setItem('siliconflowApiKey', settings.siliconflowApiKey);
+                localStorage.setItem('siliconflowVoice', settings.siliconflowVoice);
+                localStorage.setItem('siliconflowVoice2', settings.siliconflowVoice2 || settings.siliconflowVoice);
+                localStorage.setItem('siliconflowSpeed', settings.siliconflowSpeed.toString());
+                localStorage.setItem('siliconflowGain', settings.siliconflowGain.toString());
+              }
+            }}
+            initialSettings={{
+              model: ttsModel,
+              siliconflowApiKey: siliconflowApiKey || "",
+              siliconflowVoice: siliconflowVoice || "alex",
+              siliconflowVoice2: siliconflowVoice2 || "anna",
+              siliconflowSpeed: siliconflowSpeed[0] || 1.0,
+              siliconflowGain: siliconflowGain[0] || 0,
+            }}
+          />
         </div>
       </div>
-    </div>
   );
 }

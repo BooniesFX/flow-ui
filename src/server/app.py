@@ -607,8 +607,37 @@ async def text_to_speech(request: TTSRequest):
                 speed=request.siliconflow_speed,
                 gain=request.siliconflow_gain,
             )
+        
+        elif request.model and request.model.startswith("speech-2.6"):
+            # Use MiniMax TTS
+            api_key = request.minimax_api_key if request.minimax_api_key else get_str_env("MINIMAX_API_KEY", "")
+            if not api_key:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="MINIMAX_API_KEY is not set. Please provide it in the TTS settings or set MINIMAX_API_KEY environment variable."
+                )
+            
+            from src.tools.minimax_tts import MinimaxTTS
+            
+            group_id = request.minimax_group_id if request.minimax_group_id else get_str_env("MINIMAX_GROUP_ID", "")
+            
+            tts_client = MinimaxTTS(
+                api_key=api_key,
+                model=request.model,
+                group_id=group_id if group_id else None,
+            )
+            
+            # Call the MiniMax TTS API
+            result = tts_client.text_to_speech(
+                text=request.text[:1024],
+                voice_id=request.minimax_voice_id if request.minimax_voice_id else "male-qn-qingse",
+                speed=request.minimax_speed if request.minimax_speed else 1.0,
+                vol=request.minimax_vol if request.minimax_vol else 1.0,
+                pitch=request.minimax_pitch if request.minimax_pitch else 0,
+                audio_format=request.encoding if request.encoding else "mp3",
+            )
         else:
-            # Use Volcengine TTS as default
+            # Use default TTS
             app_id = get_str_env("VOLCENGINE_TTS_APPID", "")
             if not app_id:
                 raise HTTPException(status_code=400, detail="VOLCENGINE_TTS_APPID is not set")
@@ -643,8 +672,8 @@ async def text_to_speech(request: TTSRequest):
             raise HTTPException(status_code=500, detail=str(result["error"]))
 
         # Handle audio data based on TTS provider
-        if request.siliconflow_api_key:
-            # SiliconFlow returns raw audio data
+        if request.siliconflow_api_key or (request.model and request.model.startswith("speech-2.6")):
+            # SiliconFlow and MiniMax return raw audio data
             audio_data = result["audio_data"]
         else:
             # Volcengine returns base64 encoded audio data

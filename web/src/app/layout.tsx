@@ -7,19 +7,25 @@ import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 import Script from "next/script";
 import { NextIntlClientProvider } from 'next-intl';
-import { getLocale, getMessages } from 'next-intl/server';
+import { getLocale, getMessages, getTranslations } from 'next-intl/server';
 
 import { ThemeProviderWrapper } from "~/components/deer-flow/theme-provider-wrapper";
 import { env } from "~/env";
 
 import { Toaster } from "../components/deer-flow/toaster";
 
-export const metadata: Metadata = {
-  title: "开放深度研究平台",
-  description:
-    "Open Deep Research Platform, an AI tool that combines language models with specialized tools for research tasks.",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const t = await getTranslations({ locale, namespace: 'header' });
+  
+  return {
+    title: t('title'),
+    description: locale === 'zh' 
+      ? "开放深度研究平台，一个结合语言模型和专业工具用于研究任务的AI工具。"
+      : "Open Deep Research Platform, an AI tool that combines language models with specialized tools for research tasks.",
+    icons: [{ rel: "icon", url: "/favicon.ico" }],
+  };
+}
 
 const geist = Geist({
   subsets: ["latin"],

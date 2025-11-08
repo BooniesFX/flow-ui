@@ -17,10 +17,11 @@ The output should be formatted as a valid, parseable JSON object of `Script` wit
 interface ScriptLine {
   speaker: 'male' | 'female';
   paragraph: string; // only plain text, never Markdown
+  paragraph_zh?: string; // Chinese translation for bilingual mode, null for monolingual
 }
 
 interface Script {
-  locale: "en" | "zh";
+  locale: "en" | "zh" | "bilingual";
   lines: ScriptLine[];
 }
 ```
@@ -32,6 +33,7 @@ interface Script {
 - Alternate between the male and female hosts frequently to maintain interaction.
 - Avoid overly formal language; keep it casual and conversational.
 - Always generate scripts in the same locale as the given context.
+- For bilingual mode (locale="bilingual"), provide both English and Chinese versions for each line, with paragraph_zh containing the Chinese translation.
 - Never include mathematical formulas (like E=mc², f(x)=y, 10^{7} etc.), chemical equations, complex code snippets, or other notation that's difficult to read aloud.
 - When explaining technical or scientific concepts, translate them into plain, conversational language that's easy to understand and speak.
 - If the original content contains formulas or technical notation, rephrase them in natural language. For example, instead of "x² + 2x + 1 = 0", say "x squared plus two x plus one equals zero" or better yet, explain the concept without the equation.

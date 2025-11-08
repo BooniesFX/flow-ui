@@ -106,6 +106,13 @@ class TTSRequest(BaseModel):
     siliconflow_voice: Optional[str] = Field("alex", description="SiliconFlow voice to use")
     siliconflow_speed: Optional[float] = Field(1.0, description="SiliconFlow speech speed (0.25-4.0)")
     siliconflow_gain: Optional[float] = Field(0.0, description="SiliconFlow audio gain in dB (-10 to 10)")
+    minimax_api_key: Optional[str] = Field(None, description="API key for MiniMax TTS service")
+    minimax_group_id: Optional[str] = Field(None, description="Group ID for MiniMax TTS service")
+    minimax_voice_id: Optional[str] = Field(None, description="MiniMax voice ID")
+    minimax_voice_id2: Optional[str] = Field(None, description="MiniMax second voice ID for dialogue")
+    minimax_speed: Optional[float] = Field(1.0, description="MiniMax speech speed (0.5-2.0)")
+    minimax_vol: Optional[float] = Field(1.0, description="MiniMax volume (0.5-1.5)")
+    minimax_pitch: Optional[int] = Field(0, description="MiniMax pitch (-20 to 20)")
 
 
 class GeneratePodcastRequest(BaseModel):

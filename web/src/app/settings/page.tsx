@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { toast } from 'sonner';
+import { SiteHeader } from "~/app/chat/components/site-header";
 
 interface SettingsConfig {
   general: {
@@ -98,7 +99,9 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-4xl py-8">
+    <>
+      <SiteHeader />
+      <div className="container mx-auto max-w-4xl py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">{t('title')}</h1>
         <p className="text-muted-foreground mt-2">{t('description')}</p>
@@ -218,9 +221,9 @@ export default function SettingsPage() {
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold">开放深度研究平台</h3>
+                  <h3 className="text-lg font-semibold">{t("settings.title")}</h3>
                   <p className="text-muted-foreground mt-2">
-                    Open Deep Research Platform - 专注于深度研究和分析的平台
+                    {t("settings.description")}
                   </p>
                 </div>
                 <div>
@@ -246,5 +249,6 @@ export default function SettingsPage() {
         </Button>
       </div>
     </div>
+    </>
   );
 }

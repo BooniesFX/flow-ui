@@ -26,7 +26,7 @@
   },
   "settings": {
     "title": "平台设置",
-    "description": "在这里管理您的平台设置。",
+    "description": "开放深度研究平台 - 专注于深度研究和分析的平台",
     "cancel": "取消",
     "save": "保存",
     "theme": "主题",
@@ -239,7 +239,21 @@
     "dianaVoice": "欢快女声",
     "siliconflowApiKey": "SiliconFlow API 密钥",
     "enterSiliconflowApiKey": "输入 SiliconFlow API 密钥",
-    "siliconflowGain": "增益"
+    "siliconflowModel": "SiliconFlow 模型",
+    "siliconflowGain": "增益",
+    "minimax26hdModel": "MiniMax 2.6 HD",
+    "minimax26turboModel": "MiniMax 2.6 Turbo",
+    "enterMinimaxVoiceId": "选择 MiniMax 声音",
+    "enterMinimaxVoiceId2": "选择 MiniMax 声音2",
+    "minimaxVol": "音量",
+    "minimaxApiKey": "MiniMax API 密钥",
+    "enterMinimaxApiKey": "输入 MiniMax API 密钥",
+    "minimaxPitch": "音高",
+    "volcengineRealtimeModel": "火山引擎实时语音",
+    "volcengineRealtimeAppId": "火山引擎实时语音 App ID",
+    "enterVolcengineRealtimeAppId": "输入火山引擎实时语音 App ID",
+    "volcengineRealtimeAccessKey": "火山引擎实时语音 Access Key",
+    "enterVolcengineRealtimeAccessKey": "输入火山引擎实时语音 Access Key"
   },
   "landing": {
     "caseStudies": {

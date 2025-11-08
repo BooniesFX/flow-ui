@@ -26,7 +26,7 @@
   },
   "settings": {
     "title": "Platform Settings",
-    "description": "Manage your platform settings here.",
+    "description": "Open Deep Research Platform - Focused on deep research and analysis",
     "cancel": "Cancel",
     "save": "Save",
     "theme": "Theme",
@@ -239,7 +239,21 @@
     "dianaVoice": "Cheerful Female Voice",
     "siliconflowApiKey": "SiliconFlow API Key",
     "enterSiliconflowApiKey": "Enter SiliconFlow API Key",
-    "siliconflowGain": "Gain"
+    "siliconflowModel": "SiliconFlow Model",
+    "siliconflowGain": "Gain",
+    "minimax26hdModel": "MiniMax 2.6 HD",
+    "minimax26turboModel": "MiniMax 2.6 Turbo",
+    "enterMinimaxVoiceId": "Select MiniMax Voice",
+    "enterMinimaxVoiceId2": "Select MiniMax Voice 2",
+    "minimaxVol": "Volume",
+    "minimaxApiKey": "MiniMax API Key",
+    "enterMinimaxApiKey": "Enter MiniMax API Key",
+    "minimaxPitch": "Pitch",
+    "volcengineRealtimeModel": "Volcengine Realtime Voice",
+    "volcengineRealtimeAppId": "Volcengine Realtime App ID",
+    "enterVolcengineRealtimeAppId": "Enter Volcengine Realtime App ID",
+    "volcengineRealtimeAccessKey": "Volcengine Realtime Access Key",
+    "enterVolcengineRealtimeAccessKey": "Enter Volcengine Realtime Access Key"
   },
   "landing": {
     "caseStudies": {

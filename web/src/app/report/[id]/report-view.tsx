@@ -13,6 +13,7 @@ import { Slider } from "~/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Markdown } from "~/components/deer-flow/markdown";
 import { TtsSetupDialog } from "~/components/deer-flow/tts-setup-dialog";
+import { SiteHeader } from "~/app/chat/components/site-header";
 import { useRouter } from "next/navigation";
 import { useSettingsStore } from "~/core/store/settings-store";
 
@@ -172,7 +173,6 @@ export function ReportView({ report }: ReportViewProps) {
     
     setIsGeneratingPodcast(true);
     try {
-      // Call API to generate podcast
       // Get user's model configuration
       const settings = useSettingsStore.getState();
       const modelConfig = {
@@ -180,6 +180,11 @@ export function ReportView({ report }: ReportViewProps) {
         reasoning_model: settings.general.reasoningModel,
       };
 
+      // Get TTS settings from localStorage
+      const volcengineRealtimeAppId = localStorage.getItem('volcengineRealtimeAppId') || undefined;
+      const volcengineRealtimeAccessKey = localStorage.getItem('volcengineRealtimeAccessKey') || undefined;
+
+      // Call API to generate podcast
       const response = await fetch("http://localhost:8000/api/podcast/generate", {
         method: "POST",
         headers: {
@@ -194,6 +199,8 @@ export function ReportView({ report }: ReportViewProps) {
           siliconflow_voice2: siliconflowVoice2 || undefined,
           siliconflow_speed: siliconflowSpeed[0] || undefined,
           siliconflow_gain: siliconflowGain[0] || undefined,
+          volcengine_realtime_app_id: volcengineRealtimeAppId,
+          volcengine_realtime_access_key: volcengineRealtimeAccessKey,
           ...modelConfig,
         }),
       });
@@ -227,7 +234,7 @@ export function ReportView({ report }: ReportViewProps) {
     } finally {
       setIsGeneratingPodcast(false);
     }
-  }, [report, isGeneratingPodcast]);
+  }, [report, isGeneratingPodcast, ttsModel, siliconflowApiKey, siliconflowVoice, siliconflowVoice2, siliconflowSpeed, siliconflowGain]);
 
   const handleTogglePlay = useCallback(() => {
     if (isPlaying) {
@@ -259,9 +266,11 @@ export function ReportView({ report }: ReportViewProps) {
   }, [audio]);
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-7xl">
-      {/* Navigation Header */}
-      <div className="mb-6">
+    <>
+      <SiteHeader />
+      <div className="container mx-auto py-8 px-4 max-w-7xl">
+        {/* Navigation Header */}
+        <div className="mb-6">
         <Button
           variant="outline"
           size="sm"
@@ -461,6 +470,16 @@ export function ReportView({ report }: ReportViewProps) {
                 localStorage.setItem('siliconflowVoice2', settings.siliconflowVoice2 || settings.siliconflowVoice);
                 localStorage.setItem('siliconflowSpeed', settings.siliconflowSpeed.toString());
                 localStorage.setItem('siliconflowGain', settings.siliconflowGain.toString());
+                
+                // Save MiniMax settings
+                localStorage.setItem('minimaxApiKey', settings.minimaxApiKey || '');
+                // Save MiniMax settings
+                localStorage.setItem('minimaxApiKey', settings.minimaxApiKey || '');
+                localStorage.setItem('minimaxVoiceId', settings.minimaxVoiceId || '');
+                localStorage.setItem('minimaxVoiceId2', settings.minimaxVoiceId2 || settings.minimaxVoiceId || '');
+                localStorage.setItem('minimaxSpeed', (settings.minimaxSpeed || 1.0).toString());
+                localStorage.setItem('minimaxVol', (settings.minimaxVol || 1.0).toString());
+                localStorage.setItem('minimaxPitch', (settings.minimaxPitch || 0).toString());
               }
             }}
             initialSettings={{
@@ -470,9 +489,18 @@ export function ReportView({ report }: ReportViewProps) {
               siliconflowVoice2: siliconflowVoice2 || "anna",
               siliconflowSpeed: siliconflowSpeed[0] || 1.0,
               siliconflowGain: siliconflowGain[0] || 0,
+              minimaxApiKey: (typeof window !== 'undefined' ? localStorage.getItem('minimaxApiKey') || '' : ''),
+              minimaxVoiceId: (typeof window !== 'undefined' ? localStorage.getItem('minimaxVoiceId') || '' : ''),
+              minimaxVoiceId2: (typeof window !== 'undefined' ? localStorage.getItem('minimaxVoiceId2') || '' : ''),
+              minimaxSpeed: parseFloat((typeof window !== 'undefined' ? localStorage.getItem('minimaxSpeed') || '1.0' : '1.0')),
+              minimaxVol: parseFloat((typeof window !== 'undefined' ? localStorage.getItem('minimaxVol') || '1.0' : '1.0')),
+              minimaxPitch: parseInt((typeof window !== 'undefined' ? localStorage.getItem('minimaxPitch') || '0' : '0')),
+              volcengineRealtimeAppId: (typeof window !== 'undefined' ? localStorage.getItem('volcengineRealtimeAppId') || '' : ''),
+              volcengineRealtimeAccessKey: (typeof window !== 'undefined' ? localStorage.getItem('volcengineRealtimeAccessKey') || '' : ''),
             }}
           />
         </div>
       </div>
+    </>
   );
 }

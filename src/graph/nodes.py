@@ -759,7 +759,8 @@ async def _execute_agent_step(
 
     if not current_step:
         logger.warning("No unexecuted step found")
-        return Command(goto="research_team")
+        # All steps are completed, go to reporter
+        return Command(goto="reporter")
 
     logger.info(f"Executing step: {current_step.title}, agent: {agent_name}")
 
@@ -867,7 +868,8 @@ async def _execute_agent_step(
                                 content=fallback_content,
                                 name=agent_name,
                             )
-                        ]
+                        ],
+                        "current_plan": current_plan,  # Update the plan with execution results
                     }
                 )
         except Exception as e:
@@ -882,7 +884,8 @@ async def _execute_agent_step(
                                 content=fallback_content,
                                 name=agent_name,
                             )
-                        ]
+                        ],
+                        "current_plan": current_plan,  # Update the plan with execution results
                     }
                 )
             await asyncio.sleep(base_delay * (2 ** attempt))
@@ -907,6 +910,7 @@ async def _execute_agent_step(
                 )
             ],
             "observations": observations + [response_content],
+            "current_plan": current_plan,  # Update the plan with execution results
         },
         goto="research_team",
     )

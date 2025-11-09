@@ -51,7 +51,6 @@ from src.server.rag_request import (
     RAGResourceRequest,
     RAGResourcesResponse,
 )
-from src.tools import VolcengineTTS
 from src.tools.siliconflow_tts import SiliconFlowTTS
 from src.utils.json_utils import sanitize_args
 
@@ -502,12 +501,20 @@ async def generate_podcast(request: GeneratePodcastRequest):
         # Set environment variables for TTS configuration
         if request.siliconflow_api_key:
             os.environ["SILICONFLOW_API_KEY"] = request.siliconflow_api_key
-        if request.model:
-            os.environ["SILICONFLOW_MODEL"] = request.model
+        if request.siliconflow_model:
+            os.environ["SILICONFLOW_MODEL"] = request.siliconflow_model
         if request.siliconflow_voice:
             os.environ["SILICONFLOW_VOICE"] = request.siliconflow_voice
         if request.siliconflow_voice2:
             os.environ["SILICONFLOW_VOICE2"] = request.siliconflow_voice2
+        
+        # Set MiniMax configuration in environment variables
+        if request.minimax_api_key:
+            os.environ["MINIMAX_API_KEY"] = request.minimax_api_key
+        if request.minimax_model:
+            os.environ["MINIMAX_MODEL"] = request.minimax_model
+        if request.minimax_group_id:
+            os.environ["MINIMAX_GROUP_ID"] = request.minimax_group_id
         
         # Set up LLM configuration using context variables
         from src.config.context import set_custom_models
@@ -549,8 +556,19 @@ async def generate_podcast(request: GeneratePodcastRequest):
         
         workflow = build_graph()
         
+        # Prepare initial state with TTS configuration
+        initial_state = {
+            "input": request.content,
+            "siliconflow_api_key": request.siliconflow_api_key,
+            "siliconflow_model": request.siliconflow_model,
+            "siliconflow_voice": request.siliconflow_voice,
+            "minimax_api_key": request.minimax_api_key,
+            "minimax_model": request.minimax_model,
+            "minimax_group_id": request.minimax_group_id,
+        }
+        
         # Generate podcast using the workflow
-        final_state = workflow.invoke({"input": request.content})
+        final_state = workflow.invoke(initial_state)
         
         if "output" not in final_state:
             raise HTTPException(status_code=500, detail="Failed to generate podcast audio")
@@ -637,35 +655,10 @@ async def text_to_speech(request: TTSRequest):
                 audio_format=request.encoding if request.encoding else "mp3",
             )
         else:
-            # Use default TTS
-            app_id = get_str_env("VOLCENGINE_TTS_APPID", "")
-            if not app_id:
-                raise HTTPException(status_code=400, detail="VOLCENGINE_TTS_APPID is not set")
-            access_token = get_str_env("VOLCENGINE_TTS_ACCESS_TOKEN", "")
-            if not access_token:
-                raise HTTPException(
-                    status_code=400, detail="VOLCENGINE_TTS_ACCESS_TOKEN is not set"
-                )
-
-            cluster = get_str_env("VOLCENGINE_TTS_CLUSTER", "volcano_tts")
-            voice_type = get_str_env("VOLCENGINE_TTS_VOICE_TYPE", "BV700_V2_streaming")
-
-            tts_client = VolcengineTTS(
-                appid=app_id,
-                access_token=access_token,
-                cluster=cluster,
-                voice_type=voice_type,
-            )
-            # Call the TTS API
-            result = tts_client.text_to_speech(
-                text=request.text[:1024],
-                encoding=request.encoding,
-                speed_ratio=request.speed_ratio,
-                volume_ratio=request.volume_ratio,
-                pitch_ratio=request.pitch_ratio,
-                text_type=request.text_type,
-                with_frontend=request.with_frontend,
-                frontend_type=request.frontend_type,
+            # No valid TTS configuration found
+            raise HTTPException(
+                status_code=400, 
+                detail="No valid TTS configuration found. Please configure SiliconFlow, MiniMax, or other TTS service."
             )
 
         if not result["success"]:
@@ -675,9 +668,7 @@ async def text_to_speech(request: TTSRequest):
         if request.siliconflow_api_key or (request.model and request.model.startswith("speech-2.6")):
             # SiliconFlow and MiniMax return raw audio data
             audio_data = result["audio_data"]
-        else:
-            # Volcengine returns base64 encoded audio data
-            audio_data = base64.b64decode(result["audio_data"])
+        # No need for else case since we removed Volcengine
 
         # Return the audio file
         return Response(

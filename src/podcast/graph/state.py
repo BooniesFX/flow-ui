@@ -20,3 +20,11 @@ class PodcastState(MessagesState):
     # Assets
     script: Optional[Script] = None
     audio_chunks: list[bytes] = []
+
+    # TTS Configuration
+    siliconflow_api_key: Optional[str] = None
+    siliconflow_model: Optional[str] = None
+    siliconflow_voice: Optional[str] = None
+    minimax_api_key: Optional[str] = None
+    minimax_model: Optional[str] = None
+    minimax_group_id: Optional[str] = None

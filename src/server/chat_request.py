@@ -88,9 +88,9 @@ class ChatRequest(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str = Field(..., description="The text to convert to speech")
-    model: Optional[str] = Field("tts-1", description="The TTS model to use")
+    model: Optional[str] = Field("FunAudioLLM/CosyVoice2-0.5B", description="The TTS model to use")
     voice_type: Optional[str] = Field(
-        "BV700_V2_streaming", description="The voice type to use"
+        "alloy", description="The voice type to use"
     )
     encoding: Optional[str] = Field("mp3", description="The audio encoding format")
     speed_ratio: Optional[float] = Field(1.0, description="Speech speed ratio")
@@ -117,7 +117,7 @@ class TTSRequest(BaseModel):
 
 class GeneratePodcastRequest(BaseModel):
     content: str = Field(..., description="The content of the podcast")
-    model: Optional[str] = Field("tts-1", description="The TTS model to use")
+    model: Optional[str] = Field("FunAudioLLM/CosyVoice2-0.5B", description="The TTS model to use")
     voice_type: Optional[str] = Field(
         "alloy", description="The voice type to use"
     )
@@ -132,6 +132,14 @@ class GeneratePodcastRequest(BaseModel):
     siliconflow_voice2: Optional[str] = Field("anna", description="Second SiliconFlow voice for dialogue")
     siliconflow_speed: Optional[float] = Field(1.0, description="SiliconFlow speech speed (0.25-4.0)")
     siliconflow_gain: Optional[float] = Field(0.0, description="SiliconFlow audio gain in dB (-10 to 10)")
+    minimax_api_key: Optional[str] = Field(None, description="API key for MiniMax TTS service")
+    minimax_model: Optional[str] = Field("speech-2.6-hd", description="MiniMax TTS model to use")
+    minimax_group_id: Optional[str] = Field(None, description="Group ID for MiniMax TTS service")
+    minimax_voice: Optional[str] = Field("male-qn-qingse", description="Voice ID for MiniMax TTS")
+    minimax_voice2: Optional[str] = Field("female-shaonv", description="Second voice ID for MiniMax TTS")
+    minimax_speed: Optional[float] = Field(1.0, description="MiniMax speech speed (0.5-2.0)")
+    minimax_vol: Optional[float] = Field(1.0, description="MiniMax volume (0.5-1.5)")
+    minimax_pitch: Optional[int] = Field(0, description="MiniMax pitch (-20 to 20)")
     basic_model: Optional[dict] = Field(None, description="Basic model configuration for script generation")
     reasoning_model: Optional[dict] = Field(None, description="Reasoning model configuration for script generation")
 

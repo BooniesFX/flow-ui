@@ -77,30 +77,30 @@ export function ReportView({ report }: ReportViewProps) {
   const [siliconflowVoice, setSiliconflowVoice] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('siliconflowVoice');
-      return saved || "alex";
+      return saved || "";
     }
-    return "alex";
+    return "";
   });
   const [siliconflowVoice2, setSiliconflowVoice2] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('siliconflowVoice2');
-      return saved || "anna";
+      return saved || "";
     }
-    return "anna";
+    return "";
   });
-  const [siliconflowSpeed, setSiliconflowSpeed] = useState(() => {
+  const [siliconflowSpeed, setSiliconflowSpeed] = useState<[number, number]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('siliconflowSpeed');
-      return saved ? [parseFloat(saved)] : [1.0];
+      return saved ? [parseFloat(saved), parseFloat(saved)] : [1.0, 1.0];
     }
-    return [1.0];
+    return [1.0, 1.0];
   });
-  const [siliconflowGain, setSiliconflowGain] = useState(() => {
+  const [siliconflowGain, setSiliconflowGain] = useState<[number, number]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('siliconflowGain');
-      return saved ? [parseFloat(saved)] : [0.0];
+      return saved ? [parseFloat(saved), parseFloat(saved)] : [0.0, 0.0];
     }
-    return [0.0];
+    return [0.0, 0.0];
   });
 
   const formatDate = useCallback((dateString: string) => {
@@ -181,8 +181,14 @@ export function ReportView({ report }: ReportViewProps) {
       };
 
       // Get TTS settings from localStorage
-      const volcengineRealtimeAppId = localStorage.getItem('volcengineRealtimeAppId') || undefined;
-      const volcengineRealtimeAccessKey = localStorage.getItem('volcengineRealtimeAccessKey') || undefined;
+      
+      // Get MiniMax settings from localStorage
+      const minimaxApiKey = localStorage.getItem('minimaxApiKey') || undefined;
+      const minimaxVoiceId = localStorage.getItem('minimaxVoiceId') || undefined;
+      const minimaxVoiceId2 = localStorage.getItem('minimaxVoiceId2') || undefined;
+      const minimaxSpeed = localStorage.getItem('minimaxSpeed') ? parseFloat(localStorage.getItem('minimaxSpeed')!) : undefined;
+      const minimaxVol = localStorage.getItem('minimaxVol') ? parseFloat(localStorage.getItem('minimaxVol')!) : undefined;
+      const minimaxPitch = localStorage.getItem('minimaxPitch') ? parseInt(localStorage.getItem('minimaxPitch')!) : undefined;
 
       // Call API to generate podcast
       const response = await fetch("http://localhost:8000/api/podcast/generate", {
@@ -199,8 +205,14 @@ export function ReportView({ report }: ReportViewProps) {
           siliconflow_voice2: siliconflowVoice2 || undefined,
           siliconflow_speed: siliconflowSpeed[0] || undefined,
           siliconflow_gain: siliconflowGain[0] || undefined,
-          volcengine_realtime_app_id: volcengineRealtimeAppId,
-          volcengine_realtime_access_key: volcengineRealtimeAccessKey,
+          minimax_api_key: minimaxApiKey,
+          minimax_model: ttsModel, // Use the selected model for MiniMax
+          minimax_group_id: localStorage.getItem('minimaxGroupId') || undefined, // Add group ID if available
+          minimax_voice: minimaxVoiceId,
+          minimax_voice2: minimaxVoiceId2,
+          minimax_speed: minimaxSpeed,
+          minimax_vol: minimaxVol,
+          minimax_pitch: minimaxPitch,
           ...modelConfig,
         }),
       });
@@ -495,8 +507,6 @@ export function ReportView({ report }: ReportViewProps) {
               minimaxSpeed: parseFloat((typeof window !== 'undefined' ? localStorage.getItem('minimaxSpeed') || '1.0' : '1.0')),
               minimaxVol: parseFloat((typeof window !== 'undefined' ? localStorage.getItem('minimaxVol') || '1.0' : '1.0')),
               minimaxPitch: parseInt((typeof window !== 'undefined' ? localStorage.getItem('minimaxPitch') || '0' : '0')),
-              volcengineRealtimeAppId: (typeof window !== 'undefined' ? localStorage.getItem('volcengineRealtimeAppId') || '' : ''),
-              volcengineRealtimeAccessKey: (typeof window !== 'undefined' ? localStorage.getItem('volcengineRealtimeAccessKey') || '' : ''),
             }}
           />
         </div>

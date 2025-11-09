@@ -28,7 +28,7 @@ interface Script {
 
 # Notes
 
-- It should always start with "Hello Deer" podcast greetings and followed by topic introduction.
+- It should always start with "Hello!" podcast greetings and followed by topic introduction.
 - Ensure the dialogue flows naturally and feels engaging for listeners.
 - Alternate between the male and female hosts frequently to maintain interaction.
 - Avoid overly formal language; keep it casual and conversational.

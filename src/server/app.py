@@ -576,8 +576,12 @@ async def generate_podcast(request: GeneratePodcastRequest):
         # Return the generated audio
         return Response(
             content=final_state["output"],
-            media_type="audio/mp3",
-            headers={"Content-Disposition": "attachment; filename=podcast.mp3"},
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "inline; filename=podcast.mp3",
+                "Content-Type": "audio/mpeg",
+                "Cache-Control": "no-cache"
+            },
         )
 
     except HTTPException:

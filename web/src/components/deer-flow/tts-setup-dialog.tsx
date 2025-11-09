@@ -382,7 +382,6 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="FunAudioLLM/CosyVoice2-0.5B">FunAudioLLM/CosyVoice2-0.5B</SelectItem>
-                  <SelectItem value="fishaudio/fish-speech-1.4">fishaudio/fish-speech-1.4</SelectItem>
                   <SelectItem value="fnlp/MOSS-TTSD-v0.5">fnlp/MOSS-TTSD-v0.5</SelectItem>
                 </SelectContent>
               </Select>

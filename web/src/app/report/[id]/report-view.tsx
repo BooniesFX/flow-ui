@@ -106,14 +106,19 @@ export function ReportView({ report }: ReportViewProps) {
   const formatDate = useCallback((dateString: string) => {
     try {
       const date = new Date(dateString);
-      const isoString = date.toISOString();
-      if (!isoString) return dateString;
-      const datePart = isoString.split('T')[0];
-      if (!datePart) return dateString;
-      return datePart.replace(/(\d{4})-(\d{2})-(\d{2})/, "$1/$2/$3");
-    } catch {
+      // Use ISO format to ensure consistency between server and client
+      return date.toISOString().split('T')[0];
+    } catch (error) {
+      console.error("Error formatting date:", error);
       return dateString;
     }
+  }, []);
+
+  const formatTime = useCallback((seconds: number) => {
+    if (isNaN(seconds) || seconds < 0) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
   // Extract table of contents from markdown content
@@ -199,20 +204,24 @@ export function ReportView({ report }: ReportViewProps) {
         body: JSON.stringify({
           content: report.content,
           model: ttsModel,
-          siliconflow_api_key: siliconflowApiKey || undefined,
-          siliconflow_model: ttsModel,
-          siliconflow_voice: siliconflowVoice || undefined,
-          siliconflow_voice2: siliconflowVoice2 || undefined,
-          siliconflow_speed: siliconflowSpeed[0] || undefined,
-          siliconflow_gain: siliconflowGain[0] || undefined,
-          minimax_api_key: minimaxApiKey,
-          minimax_model: ttsModel, // Use the selected model for MiniMax
-          minimax_group_id: localStorage.getItem('minimaxGroupId') || undefined, // Add group ID if available
-          minimax_voice: minimaxVoiceId,
-          minimax_voice2: minimaxVoiceId2,
-          minimax_speed: minimaxSpeed,
-          minimax_vol: minimaxVol,
-          minimax_pitch: minimaxPitch,
+          ...(ttsModel.includes("CosyVoice") || ttsModel.includes("MOSS")) && {
+            siliconflow_api_key: siliconflowApiKey || undefined,
+            siliconflow_model: ttsModel,
+            siliconflow_voice: siliconflowVoice || undefined,
+            siliconflow_voice2: siliconflowVoice2 || undefined,
+            siliconflow_speed: siliconflowSpeed[0] || undefined,
+            siliconflow_gain: siliconflowGain[0] || undefined,
+          },
+          ...(ttsModel.startsWith("speech-2.6")) && {
+            minimax_api_key: minimaxApiKey,
+            minimax_model: ttsModel, // Use the selected model for MiniMax
+            minimax_group_id: localStorage.getItem('minimaxGroupId') || undefined, // Add group ID if available
+            minimax_voice: minimaxVoiceId,
+            minimax_voice2: minimaxVoiceId2,
+            minimax_speed: minimaxSpeed,
+            minimax_vol: minimaxVol,
+            minimax_pitch: minimaxPitch,
+          },
           ...modelConfig,
         }),
       });
@@ -223,23 +232,46 @@ export function ReportView({ report }: ReportViewProps) {
         
         // Play the audio
         const audio = new Audio(audioUrl);
-        audio.play();
-        setAudio(audio);
-        setIsPlaying(true);
         
-        audio.onended = () => {
-          setIsPlaying(false);
-          setAudio(null);
-          URL.revokeObjectURL(audioUrl);
-        };
+        // Add error handling for audio loading issues
+        audio.addEventListener('error', (e) => {
+          console.error('Audio playback error:', e);
+          alert('音频加载失败，请检查音频格式和服务器响应。');
+        });
         
-        // Clean up on unmount
-        return () => {
-          if (audio) {
-            audio.pause();
+        audio.addEventListener('loadstart', () => {
+          console.log('Audio loading started');
+        });
+        
+        audio.addEventListener('canplay', () => {
+          console.log('Audio can play');
+        });
+        
+        try {
+          await audio.play();
+          setAudio(audio);
+          setIsPlaying(true);
+          
+          audio.onended = () => {
+            setIsPlaying(false);
+            setAudio(null);
             URL.revokeObjectURL(audioUrl);
-          }
-        };
+          };
+          
+          // Clean up on unmount
+          return () => {
+            if (audio) {
+              audio.pause();
+              URL.revokeObjectURL(audioUrl);
+            }
+          };
+        } catch (playError) {
+          console.error('Error playing audio:', playError);
+          alert('音频播放失败，请检查浏览器是否支持该音频格式。');
+        }
+      } else {
+        console.error('Failed to generate podcast:', response.status);
+        alert('播客生成失败，请检查服务器日志。');
       }
     } catch (error) {
       console.error("Error generating podcast:", error);
@@ -380,6 +412,16 @@ export function ReportView({ report }: ReportViewProps) {
                   <HeadphonesIcon className="w-4 h-4" />
                   {isGeneratingPodcast ? t("generating") : isPlaying ? t("pause") : t("playPodcast")}
                 </Button>
+                {isGeneratingPodcast && (
+                  <div className="text-xs text-muted-foreground">
+                    预计时间: {(report.content.length / 1000 * (ttsModel.startsWith("speech-2.6") ? 3 : 2)).toFixed(1)}分钟
+                  </div>
+                )}
+                {audio && (
+                  <div className="text-xs text-muted-foreground">
+                    {formatTime(audio.currentTime)} / {formatTime(audio.duration)}
+                  </div>
+                )}
                 {isPlaying && (
                   <Button
                     variant="outline"

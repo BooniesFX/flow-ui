@@ -181,9 +181,10 @@ def background_investigation_node(state: State, config: RunnableConfig):
             )
         }
     else:
-        logger.error(
-                f"Search returned malformed response: {searched_content}"
-            )
+        # Removed error logging to avoid console spam
+        # logger.error(
+        #         f"Search returned malformed response: {searched_content}"
+        #     )
         background_investigation_results = str(searched_content)
     return {
         "background_investigation_results": json.dumps(
@@ -826,7 +827,8 @@ async def _execute_agent_step(
         )
         recursion_limit = default_recursion_limit
 
-    logger.info(f"Agent input: {agent_input}")
+    # Removed info logging to avoid console spam
+    # logger.info(f"Agent input: {agent_input}")
     
     # Generate request ID for tracking
     request_id = str(uuid.uuid4())[:8]
@@ -895,7 +897,8 @@ async def _execute_agent_step(
 
     # Process the result
     response_content = result["messages"][-1].content
-    logger.debug(f"{agent_name.capitalize()} full response: {response_content}")
+    # Removed debug logging to avoid console spam
+    # logger.debug(f"{agent_name.capitalize()} full response: {response_content}")
 
     # Update the step with the execution result
     current_step.execution_res = response_content
@@ -995,7 +998,8 @@ async def researcher_node(
     retriever_tool = get_retriever_tool(state.get("resources", []))
     if retriever_tool:
         tools.insert(0, retriever_tool)
-    logger.info(f"Researcher tools: {tools}")
+    # Removed info logging to avoid console spam
+    # logger.info(f"Researcher tools: {tools}")
     return await _setup_and_execute_agent_step(
         state,
         config,

@@ -33,8 +33,8 @@ def log_io(func: Callable) -> Callable:
         # Execute the function
         result = func(*args, **kwargs)
 
-        # Log the output
-        logger.info(f"Tool {func_name} returned: {result}")
+        # Log the output - removed to avoid console spam
+        # logger.info(f"Tool {func_name} returned: {result}")
 
         return result
 
@@ -50,15 +50,17 @@ class LoggedToolMixin:
         params = ", ".join(
             [*(str(arg) for arg in args), *(f"{k}={v}" for k, v in kwargs.items())]
         )
-        logger.debug(f"Tool {tool_name}.{method_name} called with parameters: {params}")
+        # Removed debug logging to avoid console spam
+        # logger.debug(f"Tool {tool_name}.{method_name} called with parameters: {params}")
 
     def _run(self, *args: Any, **kwargs: Any) -> Any:
         """Override _run method to add logging."""
         self._log_operation("_run", *args, **kwargs)
         result = super()._run(*args, **kwargs)
-        logger.debug(
-            f"Tool {self.__class__.__name__.replace('Logged', '')} returned: {result}"
-        )
+        # Removed debug logging of result to avoid console spam
+        # logger.debug(
+        #     f"Tool {self.__class__.__name__.replace('Logged', '')} returned: {result}"
+        # )
         return result
 
 

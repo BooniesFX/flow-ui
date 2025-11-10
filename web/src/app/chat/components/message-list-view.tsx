@@ -596,7 +596,7 @@ function PlanCard({
                 >
                   {interruptMessage?.options.map((option) => (
                     <Button
-                      key={option.value}
+                      key={`option-${option.value}-${message.id}`}
                       variant={
                         option.value === "accepted" ? "default" : "outline"
                       }
@@ -704,9 +704,9 @@ function PodcastCard({
 function ToolsDisplay({ tools }: { tools: string[] }) {
   return (
     <div className="mt-2 flex flex-wrap gap-1">
-      {tools.map((tool) => (
+      {tools.map((tool, index) => (
         <span
-          key={tool}
+          key={`tool-${tool}-${index}`}
           className="rounded-md bg-muted px-2 py-1 text-xs font-mono text-muted-foreground"
         >
           {tool}

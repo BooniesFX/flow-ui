@@ -202,6 +202,10 @@ class SearchResultPostProcessor:
         """Remove duplicate results"""
 
         url = result.get("url", result.get("image_url", ""))
+        # Handle case where image_url is a dict with "url" key
+        if isinstance(url, dict):
+            url = url.get("url", "")
+        
         if url and url not in seen_urls:
             seen_urls.add(url)
             return result.copy()  # Return a copy to avoid modifying original

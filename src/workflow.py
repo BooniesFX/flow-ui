@@ -12,6 +12,17 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+# Reduce noise from third-party libraries during debugging
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("langgraph").setLevel(logging.WARNING)
+logging.getLogger("langchain").setLevel(logging.WARNING)
+logging.getLogger("langchain_core").setLevel(logging.WARNING)
+
+# Optionally reduce noise from internal modules (uncomment if needed)
+# logging.getLogger("src.tools.search_postprocessor").setLevel(logging.WARNING)
+# logging.getLogger("src.utils.context_manager").setLevel(logging.WARNING)
+
 
 def enable_debug_logging():
     """Enable debug level logging for more detailed execution information."""

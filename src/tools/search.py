@@ -73,9 +73,10 @@ def get_web_search_tool(max_search_results: int, custom_search_engine_config=Non
         # Use custom API key if provided (support both camelCase and snake_case)
         api_key = search_config.get("apiKey") or search_config.get("api_key", os.getenv("TAVILY_API_KEY", ""))
 
-        logger.info(
-            f"Tavily search configuration loaded: include_domains={include_domains}, exclude_domains={exclude_domains}, api_key_configured={bool(api_key)}"
-        )
+        # Removed info logging to avoid console spam during debugging
+        # logger.info(
+        #     f"Tavily search configuration loaded: include_domains={include_domains}, exclude_domains={exclude_domains}, api_key_configured={bool(api_key)}"
+        # )
 
         # Create API wrapper with custom API key and postprocessor params
         postprocessor_params = {

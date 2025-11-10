@@ -24,10 +24,26 @@ from .types import State
 def continue_to_running_research_team(state: State):
     logger = logging.getLogger(__name__)
     logger.info("=" * 50)
-    logger.info("CONTINUE TO RUNNING RESEARCH TEAM")
+    logger.info("CONTINUE TO RUNNING RESEARCH TEAM - ENTRY")
     logger.info("=" * 50)
     current_plan = state.get("current_plan")
     plan_iterations = state.get("plan_iterations", 0)
+    
+    # Add call counter to detect loops
+    import time
+    current_time = time.time()
+    last_call_time = getattr(continue_to_running_research_team, '_last_call_time', 0)
+    call_count = getattr(continue_to_running_research_team, '_call_count', 0)
+    
+    if current_time - last_call_time < 1:  # Called within 1 second
+        call_count += 1
+    else:
+        call_count = 1
+    
+    continue_to_running_research_team._last_call_time = current_time
+    continue_to_running_research_team._call_count = call_count
+    
+    logger.warning(f"[LOOP DETECTION] continue_to_running_research_team called {call_count} times in quick succession")
     
     # Log for debugging
     logger.info(f"[DEBUG] continue_to_running_research_team: plan_iterations={plan_iterations}, current_plan_type={type(current_plan)}")
@@ -45,14 +61,18 @@ def continue_to_running_research_team(state: State):
         return "planner"
 
     # If all steps are completed, go to reporter instead of planner
-    if all(step.execution_res for step in current_plan.steps):
+    completed_count = sum(1 for step in current_plan.steps if step.execution_res is not None)
+    logger.info(f"[DEBUG] Steps completion: {completed_count}/{len(current_plan.steps)}")
+    
+    if all(step.execution_res is not None for step in current_plan.steps):
         logger.info("All steps completed, going to reporter")
         return "reporter"
 
     # Find first incomplete step
     incomplete_step = None
-    for step in current_plan.steps:
-        if not step.execution_res:
+    for i, step in enumerate(current_plan.steps):
+        logger.info(f"[DEBUG] Step {i}: '{step.title}', execution_res={'SET' if step.execution_res is not None else 'NONE'}")
+        if step.execution_res is None:
             incomplete_step = step
             break
 
@@ -61,11 +81,12 @@ def continue_to_running_research_team(state: State):
         return "reporter"
 
     if incomplete_step.step_type == StepType.RESEARCH:
-        logger.info("Next step is RESEARCH")
+        logger.info(f"[ROUTING] Next step is RESEARCH: '{incomplete_step.title}'")
         return "researcher"
     if incomplete_step.step_type == StepType.PROCESSING:
-        logger.info("Next step is PROCESSING")
+        logger.info(f"[ROUTING] Next step is PROCESSING: '{incomplete_step.title}'")
         return "coder"
+    logger.info("[ROUTING] Returning to planner")
     return "planner"
 
 

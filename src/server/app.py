@@ -436,7 +436,10 @@ async def _stream_graph_events(
                     tuple[BaseMessage, dict[str, Any]], event_data[:2]
                 )
             else:
-                logger.warning(f"[DEBUG] Unexpected event_data format: {type(event_data)}, content: {event_data}")
+                # Skip non-message events (like AddableUpdatesDict from LangGraph state updates)
+                # These are internal state updates and don't need to be streamed to the client
+                # Removed debug logging to avoid console spam
+                # logger.warning(f"[DEBUG] Unexpected event_data format: {type(event_data)}, content: {event_data}")
                 continue
 
             async for event in _process_message_chunk(

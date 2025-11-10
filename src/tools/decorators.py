@@ -23,12 +23,12 @@ def log_io(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Log input parameters
-        func_name = func.__name__
-        params = ", ".join(
-            [*(str(arg) for arg in args), *(f"{k}={v}" for k, v in kwargs.items())]
-        )
-        logger.info(f"Tool {func_name} called with parameters: {params}")
+        # Log input parameters - removed to avoid console spam during debugging
+        # func_name = func.__name__
+        # params = ", ".join(
+        #     [*(str(arg) for arg in args), *(f"{k}={v}" for k, v in kwargs.items())]
+        # )
+        # logger.info(f"Tool {func_name} called with parameters: {params}")
 
         # Execute the function
         result = func(*args, **kwargs)

@@ -752,7 +752,7 @@ async def _execute_agent_step(
     current_step = None
     completed_steps = []
     for step in current_plan.steps:
-        if not step.execution_res:
+        if step.execution_res is None:
             current_step = step
             break
         else:
@@ -833,6 +833,7 @@ async def _execute_agent_step(
     # Generate request ID for tracking
     request_id = str(uuid.uuid4())[:8]
     logger.info(f"Executing agent step {agent_name} with request_id: {request_id}")
+    logger.info(f"[DEBUG] Step execution_res before: {current_step.execution_res}")
     
     # Retry logic with exponential backoff
     max_retries = 3
@@ -872,7 +873,8 @@ async def _execute_agent_step(
                             )
                         ],
                         "current_plan": current_plan,  # Update the plan with execution results
-                    }
+                    },
+                    goto="research_team",
                 )
         except Exception as e:
             logger.error(f"Request {request_id}: Unexpected error on attempt {attempt + 1}: {e}")
@@ -888,7 +890,8 @@ async def _execute_agent_step(
                             )
                         ],
                         "current_plan": current_plan,  # Update the plan with execution results
-                    }
+                    },
+                    goto="research_team",
                 )
             await asyncio.sleep(base_delay * (2 ** attempt))
     
@@ -903,6 +906,7 @@ async def _execute_agent_step(
     # Update the step with the execution result
     current_step.execution_res = response_content
     logger.info(f"Step '{current_step.title}' execution completed by {agent_name}")
+    logger.info(f"[DEBUG] Step execution_res after: {current_step.execution_res is not None}, length: {len(response_content) if response_content else 0}")
 
     return Command(
         update={

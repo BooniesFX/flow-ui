@@ -331,11 +331,6 @@
     "multiAgent": {
       "title": "多智能体架构",
       "description": "通过我们的监督者 + 交接设计模式体验智能体团队合作。"
-    },
-    "joinCommunity": {
-      "title": "加入社区",
-      "description": "贡献精彩想法，塑造平台的未来。协作、创新并产生影响。",
-      "contributeNow": "立即贡献"
     }
   }
 }

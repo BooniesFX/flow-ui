@@ -331,11 +331,6 @@
     "multiAgent": {
       "title": "Multi-Agent Architecture",
       "description": "Experience the agent teamwork with our Supervisor + Handoffs design pattern."
-    },
-    "joinCommunity": {
-      "title": "Join the Community",
-      "description": "Contribute brilliant ideas to shape the future of the platform. Collaborate, innovate, and make impacts.",
-      "contributeNow": "Contribute Now"
     }
   }
 }

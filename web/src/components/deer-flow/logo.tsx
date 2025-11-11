@@ -6,10 +6,11 @@ import Link from "next/link";
 export function Logo() {
   return (
     <Link
-      className="opacity-70 transition-opacity duration-300 hover:opacity-100"
+      className="flex items-center gap-2 opacity-70 transition-opacity duration-300 hover:opacity-100"
       href="/"
     >
-      🦌 DeerFlow
+      <span className="text-2xl font-bold text-primary">DR</span>
+      <span className="font-semibold">Deep Research</span>
     </Link>
   );
 }

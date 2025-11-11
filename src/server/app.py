@@ -64,8 +64,8 @@ if os.name == "nt":
 INTERNAL_SERVER_ERROR_DETAIL = "Internal Server Error"
 
 app = FastAPI(
-    title="DeerFlow API",
-    description="API for Deer",
+    title="Deep Research API",
+    description="API for Deep Research",
     version="0.1.0",
 )
 

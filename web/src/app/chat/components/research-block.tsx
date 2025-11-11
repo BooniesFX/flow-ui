@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 // SPDX-License-Identifier: MIT
 
-import { Check, Copy, Headphones, Pencil, Undo2, X, Download } from "lucide-react";
+import { Check, Copy, Pencil, Undo2, X, Download } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
@@ -11,13 +11,12 @@ import { Card } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "~/components/ui/tooltip";
 import { useReplay } from "~/core/replay";
-import { closeResearch, listenToPodcast, useStore } from "~/core/store";
+import { closeResearch, useStore } from "~/core/store";
 import { cn } from "~/lib/utils";
 
 import { ResearchActivitiesBlock } from "./research-activities-block";
 import { ResearchReportBlock } from "./research-report-block";
 import { ResearchVisualization } from "./visualization/research-visualization";
-import { ResearchSettingsDialog } from "./research-settings-dialog";
 
 export function ResearchBlock({
   className,
@@ -43,13 +42,6 @@ export function ResearchBlock({
       setActiveTab("report");
     }
   }, [hasReport]);
-
-  const handleGeneratePodcast = useCallback(async () => {
-    if (!researchId) {
-      return;
-    }
-    await listenToPodcast(researchId);
-  }, [researchId]);
 
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -120,22 +112,6 @@ export function ResearchBlock({
                     size="icon"
                     variant="ghost"
                     disabled={isReplay}
-                    onClick={handleGeneratePodcast}
-                  >
-                    <Headphones />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{t("generatePodcast")}</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    className="text-gray-400"
-                    size="icon"
-                    variant="ghost"
-                    disabled={isReplay}
                     onClick={handleEdit}
                   >
                     {editing ? <Undo2 /> : <Pencil />}
@@ -177,7 +153,6 @@ export function ResearchBlock({
               </Tooltip>
             </>
           )}
-          <ResearchSettingsDialog />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

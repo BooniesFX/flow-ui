@@ -40,6 +40,16 @@ const config = {
 
   // ... rest of the configuration.
   output: "standalone",
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'upload.wikimedia.org',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
 };
 
 export default withNextIntl(config);

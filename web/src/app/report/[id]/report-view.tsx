@@ -12,6 +12,7 @@ import { Badge } from "~/components/ui/badge";
 import { Slider } from "~/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Markdown } from "~/components/deer-flow/markdown";
+import Image from "next/image";
 import { TtsSetupDialog } from "~/components/deer-flow/tts-setup-dialog";
 import { SiteHeader } from "~/app/chat/components/site-header";
 import { useRouter } from "next/navigation";
@@ -57,6 +58,8 @@ export function ReportView({ report }: ReportViewProps) {
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [showToc, setShowToc] = useState(true);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
   
   // TTS Settings state
   const [showTtsSettings, setShowTtsSettings] = useState(false);
@@ -67,6 +70,13 @@ export function ReportView({ report }: ReportViewProps) {
     }
     return "FunAudioLLM/CosyVoice2-0.5B";
   });
+  const [cozeApiToken, setCozeApiToken] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('cozeApiToken')
+      return saved || ''
+    }
+    return ''
+  })
   const [siliconflowApiKey, setSiliconflowApiKey] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('siliconflowApiKey');
@@ -178,6 +188,49 @@ export function ReportView({ report }: ReportViewProps) {
     
     setIsGeneratingPodcast(true);
     try {
+      if (ttsModel === 'coze') {
+        const token = cozeApiToken || (typeof window !== 'undefined' ? localStorage.getItem('cozeApiToken') || '' : '')
+        if (!token) {
+          alert('请先在 TTS 设置中填写 CozeAPI token')
+          return
+        }
+        const timeoutMs = 180000
+        let timeoutHit = false
+        const timeoutId = setTimeout(() => {
+          timeoutHit = true
+          setIsGeneratingPodcast(false)
+          alert('播客生成超时，请稍后重试')
+        }, timeoutMs)
+
+        const { createCozePodcast } = await import('~/core/api/coze')
+        // 使用非阻塞 then/catch，避免 timeout 后仍阻塞 UI
+        createCozePodcast({ token, text: report.content })
+          .then((mp3Url) => {
+            if (timeoutHit) return
+            clearTimeout(timeoutId)
+            setIsGeneratingPodcast(false)
+            const a = new Audio(mp3Url)
+            a.addEventListener('loadedmetadata', () => { setDuration(a.duration || 0) })
+            a.addEventListener('timeupdate', () => { setCurrentTime(a.currentTime || 0) })
+            a.play().catch(() => {})
+            setAudio(a)
+            setIsPlaying(true)
+            a.onended = () => {
+              setIsPlaying(false)
+              setAudio(null)
+              setCurrentTime(0)
+              setDuration(0)
+            }
+          })
+          .catch((error) => {
+            if (timeoutHit) return
+            clearTimeout(timeoutId)
+            setIsGeneratingPodcast(false)
+            console.error('Coze 生成播客失败', error)
+            alert('Coze 生成播客失败，请检查 token 与网络')
+          })
+        return
+      }
       // Get user's model configuration
       const settings = useSettingsStore.getState();
       const modelConfig = {
@@ -196,6 +249,15 @@ export function ReportView({ report }: ReportViewProps) {
       const minimaxPitch = localStorage.getItem('minimaxPitch') ? parseInt(localStorage.getItem('minimaxPitch')!) : undefined;
 
       // Call API to generate podcast
+      // 与试听一致：加超时控制并支持取消
+      const controller = new AbortController();
+      const timeoutMs = 120000;
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        setIsGeneratingPodcast(false);
+        alert('播客生成超时，请稍后重试');
+      }, timeoutMs);
+
       const response = await fetch("http://localhost:8000/api/podcast/generate", {
         method: "POST",
         headers: {
@@ -224,9 +286,11 @@ export function ReportView({ report }: ReportViewProps) {
           },
           ...modelConfig,
         }),
+        signal: controller.signal,
       });
 
       if (response.ok) {
+        clearTimeout(timeoutId);
         const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
         
@@ -251,11 +315,19 @@ export function ReportView({ report }: ReportViewProps) {
           await audio.play();
           setAudio(audio);
           setIsPlaying(true);
+          audio.addEventListener('loadedmetadata', () => {
+            setDuration(audio.duration || 0)
+          })
+          audio.addEventListener('timeupdate', () => {
+            setCurrentTime(audio.currentTime || 0)
+          })
           
           audio.onended = () => {
             setIsPlaying(false);
             setAudio(null);
             URL.revokeObjectURL(audioUrl);
+            setCurrentTime(0)
+            setDuration(0)
           };
           
           // Clean up on unmount
@@ -270,6 +342,7 @@ export function ReportView({ report }: ReportViewProps) {
           alert('音频播放失败，请检查浏览器是否支持该音频格式。');
         }
       } else {
+        clearTimeout(timeoutId);
         console.error('Failed to generate podcast:', response.status);
         alert('播客生成失败，请检查服务器日志。');
       }
@@ -278,7 +351,7 @@ export function ReportView({ report }: ReportViewProps) {
     } finally {
       setIsGeneratingPodcast(false);
     }
-  }, [report, isGeneratingPodcast, ttsModel, siliconflowApiKey, siliconflowVoice, siliconflowVoice2, siliconflowSpeed, siliconflowGain]);
+  }, [report, isGeneratingPodcast, ttsModel, siliconflowApiKey, siliconflowVoice, siliconflowVoice2, siliconflowSpeed, siliconflowGain, cozeApiToken]);
 
   const handleTogglePlay = useCallback(() => {
     if (isPlaying) {
@@ -361,7 +434,7 @@ export function ReportView({ report }: ReportViewProps) {
           {/* Report Header */}
           <div className="mb-6">
             <h1 className="text-3xl font-bold mb-2">{report.title}</h1>
-            <p className="text-muted-foreground text-lg mb-4">{report.description}</p>
+            {/* 移除报告描述的段落展示 */}
             
             {/* Report metadata */}
             <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
@@ -419,7 +492,7 @@ export function ReportView({ report }: ReportViewProps) {
                 )}
                 {audio && (
                   <div className="text-xs text-muted-foreground">
-                    {formatTime(audio.currentTime)} / {formatTime(audio.duration)}
+                    {formatTime(currentTime)} / {formatTime(duration)} 剩余: {formatTime((duration || 0) - (currentTime || 0))}
                   </div>
                 )}
                 {isPlaying && (
@@ -489,9 +562,11 @@ export function ReportView({ report }: ReportViewProps) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {report.metadata.images.map((image, index) => (
                     <div key={`image-${index}-${image.url}`} className="border rounded-lg overflow-hidden">
-                      <img
+                      <Image
                         src={image.url}
                         alt={image.alt}
+                        width={800}
+                        height={384}
                         className="w-full h-48 object-cover"
                       />
                       <div className="p-4">
@@ -513,8 +588,9 @@ export function ReportView({ report }: ReportViewProps) {
               setSiliconflowApiKey(settings.siliconflowApiKey);
               setSiliconflowVoice(settings.siliconflowVoice);
               setSiliconflowVoice2(settings.siliconflowVoice2 || settings.siliconflowVoice);
-              setSiliconflowSpeed([settings.siliconflowSpeed]);
-              setSiliconflowGain([settings.siliconflowGain]);
+              setSiliconflowSpeed([settings.siliconflowSpeed, settings.siliconflowSpeed]);
+              setSiliconflowGain([settings.siliconflowGain, settings.siliconflowGain]);
+              setCozeApiToken(settings.cozeApiToken || '')
               
               // Save to localStorage
               if (typeof window !== 'undefined') {
@@ -524,6 +600,7 @@ export function ReportView({ report }: ReportViewProps) {
                 localStorage.setItem('siliconflowVoice2', settings.siliconflowVoice2 || settings.siliconflowVoice);
                 localStorage.setItem('siliconflowSpeed', settings.siliconflowSpeed.toString());
                 localStorage.setItem('siliconflowGain', settings.siliconflowGain.toString());
+                localStorage.setItem('cozeApiToken', settings.cozeApiToken || '')
                 
                 // Save MiniMax settings
                 localStorage.setItem('minimaxApiKey', settings.minimaxApiKey || '');
@@ -543,6 +620,15 @@ export function ReportView({ report }: ReportViewProps) {
               siliconflowVoice2: siliconflowVoice2 || "anna",
               siliconflowSpeed: siliconflowSpeed[0] || 1.0,
               siliconflowGain: siliconflowGain[0] || 0,
+              cozeApiToken: (typeof window !== 'undefined' ? localStorage.getItem('cozeApiToken') || '' : ''),
+              apiKey: "",
+              endpoint: "",
+              voiceType: (typeof window !== 'undefined' ? localStorage.getItem('voiceType') || 'alloy' : 'alloy'),
+              voiceType2: (typeof window !== 'undefined' ? localStorage.getItem('voiceType2') || 'alloy' : 'alloy'),
+              speedRatio: parseFloat((typeof window !== 'undefined' ? localStorage.getItem('speedRatio') || '1.0' : '1.0')),
+              volumeRatio: parseFloat((typeof window !== 'undefined' ? localStorage.getItem('volumeRatio') || '1.0' : '1.0')),
+              pitchRatio: parseFloat((typeof window !== 'undefined' ? localStorage.getItem('pitchRatio') || '1.0' : '1.0')),
+              siliconflowModel: (typeof window !== 'undefined' ? localStorage.getItem('siliconflowModel') || 'FunAudioLLM/CosyVoice2-0.5B' : 'FunAudioLLM/CosyVoice2-0.5B'),
               minimaxApiKey: (typeof window !== 'undefined' ? localStorage.getItem('minimaxApiKey') || '' : ''),
               minimaxVoiceId: (typeof window !== 'undefined' ? localStorage.getItem('minimaxVoiceId') || '' : ''),
               minimaxVoiceId2: (typeof window !== 'undefined' ? localStorage.getItem('minimaxVoiceId2') || '' : ''),

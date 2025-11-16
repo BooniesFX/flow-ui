@@ -127,9 +127,9 @@ export async function sendMessage(
       max_search_results: settings.maxSearchResults,
       report_style: settings.reportStyle,
       mcp_settings: settings.mcpSettings,
-      basic_model: settings.basicModel,
-      reasoning_model: settings.reasoningModel,
-      search_engine: settings.searchEngine,
+      basicModel: settings.basicModel,
+      reasoningModel: settings.reasoningModel,
+      searchEngine: settings.searchEngine,
     },
     options,
   );

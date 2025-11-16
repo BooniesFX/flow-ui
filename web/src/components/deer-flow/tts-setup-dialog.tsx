@@ -42,6 +42,7 @@ interface TtsSettings {
   minimaxSpeed: number;
   minimaxVol: number;
   minimaxPitch: number;
+  cozeApiToken?: string;
 }
 
 export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSettings }: TtsSetupDialogProps) {
@@ -49,6 +50,8 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
   const [settings, setSettings] = useState<TtsSettings>(initialSettings);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSiliconflowApiKey, setShowSiliconflowApiKey] = useState(false);
+  const [showCozeToken, setShowCozeToken] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const { general } = useSettingsStore();
 
   const handleSave = () => {
@@ -70,6 +73,9 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
       localStorage.setItem('minimaxSpeed', (settings.minimaxSpeed || 1.0).toString());
       localStorage.setItem('minimaxVol', (settings.minimaxVol || 1.0).toString());
       localStorage.setItem('minimaxPitch', (settings.minimaxPitch || 0).toString());
+
+      // Save Coze token
+      localStorage.setItem('cozeApiToken', settings.cozeApiToken || '');
       
       // Save voice types for non-SiliconFlow models
       if (!(settings.model.includes("CosyVoice") || settings.model.includes("MOSS") || settings.model.includes("speech-2.6"))) {
@@ -96,37 +102,8 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
         </DialogHeader>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-          {/* API Key */}
-          <div className="md:col-span-2">
-            <Label htmlFor="api-key" className="text-sm font-medium">
-              {t("siliconflowApiKey") || "SiliconFlow API密钥"}
-            </Label>
-            <div className="relative">
-              <Input
-                id="api-key"
-                type={showApiKey ? "text" : "password"}
-                value={settings.siliconflowApiKey || ""}
-                onChange={(e) => setSettings({...settings, siliconflowApiKey: e.target.value})}
-                placeholder={t("enterSiliconflowApiKey") || "输入SiliconFlow API密钥"}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => setShowApiKey(!showApiKey)}
-              >
-                {showApiKey ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </div>
-          
           {/* TTS Model */}
-          <div>
+          <div className="md:col-span-2">
             <Label className="text-sm font-medium mb-2 block">
               {t("ttsModel") || "TTS模型"}
             </Label>
@@ -139,16 +116,110 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                 <SelectItem value="fnlp/MOSS-TTSD-v0.5">{t("mossModel") || "MOSS-TTSD-v0.5"}</SelectItem>
                 <SelectItem value="speech-2.6-hd">{t("minimax26hdModel") || "MiniMax 2.6 HD"}</SelectItem>
                 <SelectItem value="speech-2.6-turbo">{t("minimax26turboModel") || "MiniMax 2.6 Turbo"}</SelectItem>
+                <SelectItem value="coze">Coze</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
+          {/* API Key (conditional by model) */}
+          {(settings.model.includes("CosyVoice") || settings.model.includes("MOSS")) && (
+            <div className="md:col-span-2">
+              <Label htmlFor="siliconflow-api-key" className="text-sm font-medium">
+                {t("siliconflowApiKey") || "SiliconFlow API密钥"}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="siliconflow-api-key"
+                  type={showApiKey ? "text" : "password"}
+                  value={settings.siliconflowApiKey || ""}
+                  onChange={(e) => setSettings({...settings, siliconflowApiKey: e.target.value})}
+                  placeholder={t("enterSiliconflowApiKey") || "输入SiliconFlow API密钥"}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {settings.model.includes("speech-2.6") && (
+            <div className="md:col-span-2">
+              <Label htmlFor="minimax-api-key" className="text-sm font-medium">
+                {t("minimaxApiKey") || "MiniMax API密钥"}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="minimax-api-key"
+                  type={showApiKey ? "text" : "password"}
+                  value={settings.minimaxApiKey || ""}
+                  onChange={(e) => setSettings({...settings, minimaxApiKey: e.target.value})}
+                  placeholder={t("enterMinimaxApiKey") || "输入MiniMax API密钥"}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {settings.model === 'coze' && (
+            <div className="md:col-span-2">
+              <Label htmlFor="coze-api-token" className="text-sm font-medium">
+                {t("cozeApiToken") || "CozeAPI token"}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="coze-api-token"
+                  type={showCozeToken ? "text" : "password"}
+                  value={settings.cozeApiToken || ""}
+                  onChange={(e) => setSettings({...settings, cozeApiToken: e.target.value})}
+                  placeholder={t("enterCozeApiToken") || "输入 CozeAPI token"}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowCozeToken(!showCozeToken)}
+                >
+                  {showCozeToken ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
           
           {/* Voice Type 1 */}
           <div>
             <Label className="text-sm font-medium mb-2 block">
               {t("voiceType1") || "声音类型1"}
             </Label>
-            {settings.model.includes("CosyVoice") || settings.model.includes("MOSS") ? (
+            {settings.model === 'coze' ? (
+              <div className="text-sm text-muted-foreground">Coze 模式无需选择声音类型，由 Coze 生成播客文本与音频</div>
+            ) : settings.model.includes("CosyVoice") || settings.model.includes("MOSS") ? (
               <Select value={settings.siliconflowVoice || "alex"} onValueChange={(value) => setSettings({...settings, siliconflowVoice: value})}>
                 <SelectTrigger>
                   <SelectValue />
@@ -202,7 +273,9 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
             <Label className="text-sm font-medium mb-2 block">
               {t("voiceType2") || "声音类型2"}
             </Label>
-            {settings.model.includes("CosyVoice") || settings.model.includes("MOSS") ? (
+            {settings.model === 'coze' ? (
+              <div className="text-sm text-muted-foreground">Coze 模式无需选择声音类型，由 Coze 生成</div>
+            ) : settings.model.includes("CosyVoice") || settings.model.includes("MOSS") ? (
               <Select value={settings.siliconflowVoice2 || settings.siliconflowVoice || "alex"} onValueChange={(value) => setSettings({...settings, siliconflowVoice2: value})}>
                 <SelectTrigger>
                   <SelectValue />
@@ -262,10 +335,12 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                 (settings.speedRatio || 1.0).toFixed(1)
               }x
             </Label>
-            {settings.model.includes("CosyVoice") || settings.model.includes("MOSS") ? (
+            {settings.model === 'coze' ? (
+              <div className="text-sm text-muted-foreground">Coze 模式无需设置语速</div>
+            ) : settings.model.includes("CosyVoice") || settings.model.includes("MOSS") ? (
               <Slider
                 value={[settings.siliconflowSpeed || 1.0]}
-                onValueChange={([value]) => setSettings({...settings, siliconflowSpeed: value})}
+                onValueChange={([value]) => setSettings({...settings, siliconflowSpeed: value ?? 1.0})}
                 min={0.25}
                 max={4.0}
                 step={0.1}
@@ -274,7 +349,7 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
             ) : settings.model.includes("speech-2.6") ? (
               <Slider
                 value={[settings.minimaxSpeed || 1.0]}
-                onValueChange={([value]) => setSettings({...settings, minimaxSpeed: value})}
+                onValueChange={([value]) => setSettings({...settings, minimaxSpeed: value ?? 1.0})}
                 min={0.5}
                 max={2.0}
                 step={0.1}
@@ -283,7 +358,7 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
             ) : (
               <Slider
                 value={[settings.speedRatio || 1.0]}
-                onValueChange={([value]) => setSettings({...settings, speedRatio: value})}
+                onValueChange={([value]) => setSettings({...settings, speedRatio: value ?? 1.0})}
                 min={0.5}
                 max={2.0}
                 step={0.1}
@@ -294,14 +369,16 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
           
           {/* Volume/Gain */}
           <div>
-            {settings.model.includes("CosyVoice") || settings.model.includes("MOSS") ? (
+            {settings.model === 'coze' ? (
+              <div className="text-sm text-muted-foreground">Coze 模式无需设置增益/音量</div>
+            ) : settings.model.includes("CosyVoice") || settings.model.includes("MOSS") ? (
               <div>
                 <Label className="text-sm font-medium mb-2 block">
                   {t("siliconflowGain") || "增益"}: {(settings.siliconflowGain || 0).toFixed(1)} dB
                 </Label>
                 <Slider
                   value={[settings.siliconflowGain || 0]}
-                  onValueChange={([value]) => setSettings({...settings, siliconflowGain: value})}
+                  onValueChange={([value]) => setSettings({...settings, siliconflowGain: value ?? 0})}
                   min={-10}
                   max={10}
                   step={0.1}
@@ -315,7 +392,7 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                 </Label>
                 <Slider
                   value={[settings.minimaxVol || 1.0]}
-                  onValueChange={([value]) => setSettings({...settings, minimaxVol: value})}
+                  onValueChange={([value]) => setSettings({...settings, minimaxVol: value ?? 1.0})}
                   min={0.5}
                   max={1.5}
                   step={0.1}
@@ -329,7 +406,7 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                 </Label>
                 <Slider
                   value={[settings.volumeRatio || 1.0]}
-                  onValueChange={([value]) => setSettings({...settings, volumeRatio: value})}
+                  onValueChange={([value]) => setSettings({...settings, volumeRatio: value ?? 1.0})}
                   min={0.5}
                   max={1.5}
                   step={0.1}
@@ -339,36 +416,7 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
             )}
           </div>
           
-          {/* MiniMax API Key */}
-          {(settings.model === "speech-2.6-hd" || settings.model === "speech-2.6-turbo") && (
-            <div className="md:col-span-2">
-              <Label htmlFor="minimax-api-key" className="text-sm font-medium">
-                {t("minimaxApiKey") || "MiniMax API密钥"}
-              </Label>
-              <div className="relative">
-                <Input
-                  id="minimax-api-key"
-                  type={showApiKey ? "text" : "password"}
-                  value={settings.minimaxApiKey || ""}
-                  onChange={(e) => setSettings({...settings, minimaxApiKey: e.target.value})}
-                  placeholder={t("enterMinimaxApiKey") || "输入MiniMax API密钥"}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                >
-                  {showApiKey ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* MiniMax API Key moved above and unified; removing duplicate block */}
           
           {/* SiliconFlow Model */}
           {settings.model === "siliconflow-tts" && (
@@ -391,14 +439,14 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
           
           
           {/* Pitch Ratio - Only for non-SiliconFlow and non-MiniMax models */}
-          {!settings.model.includes("CosyVoice") && !settings.model.includes("MOSS") && !settings.model.includes("speech-2.6") && (
+          {!settings.model.includes("CosyVoice") && !settings.model.includes("MOSS") && !settings.model.includes("speech-2.6") && settings.model !== 'coze' && (
             <div className="md:col-span-2">
               <Label className="text-sm font-medium mb-2 block">
                 {t("pitchRatio") || "音高"}: {(settings.pitchRatio || 1.0).toFixed(1)}x
               </Label>
               <Slider
                 value={[settings.pitchRatio || 1.0]}
-                onValueChange={([value]) => setSettings({...settings, pitchRatio: value})}
+                onValueChange={([value]) => setSettings({...settings, pitchRatio: value ?? 1.0})}
                 min={0.5}
                 max={1.5}
                 step={0.1}
@@ -415,7 +463,7 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
               </Label>
               <Slider
                 value={[settings.minimaxPitch || 0]}
-                onValueChange={([value]) => setSettings({...settings, minimaxPitch: value})}
+                onValueChange={([value]) => setSettings({...settings, minimaxPitch: value ?? 0})}
                 min={-20}
                 max={20}
                 step={1}
@@ -434,7 +482,9 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
           <div className="flex gap-2">
             <Button 
               variant="outline" 
+              disabled={isPreviewing}
               onClick={async () => {
+                setIsPreviewing(true);
                 onSettingsSave(settings);
                 
                 // Save to localStorage
@@ -503,15 +553,47 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                   }
                 }
                 
+                const cozePreviewText = "2025 年 11 月 15 日当地天气为阴，最高温度 19℃，最低温度 9℃，湿度 65%，白天南风 1 级，夜晚东南风 1 级";
+                const timeoutMs = 60000;
+                let timeoutHit = false;
+                let controller: AbortController | null = null;
+                const timeoutId = setTimeout(() => {
+                  timeoutHit = true;
+                  if (controller) controller.abort();
+                  setIsPreviewing(false);
+                  alert("试听超时，请稍后重试");
+                }, timeoutMs);
+                if (settings.model === 'coze') {
+                  const token = settings.cozeApiToken || localStorage.getItem('cozeApiToken') || '';
+                  if (!token) {
+                    clearTimeout(timeoutId);
+                    setIsPreviewing(false);
+                    alert("请先输入 CozeAPI token");
+                    return;
+                  }
+                  try {
+                    const { createCozePodcast } = await import('~/core/api/coze')
+                    const mp3Url = await createCozePodcast({ token, text: cozePreviewText })
+                    clearTimeout(timeoutId);
+                    setIsPreviewing(false);
+                    const audio = new Audio(mp3Url)
+                    audio.play().catch(() => {/* ignore play error */})
+                  } catch (error) {
+                    console.error("Coze 试听失败", error)
+                    clearTimeout(timeoutId);
+                    setIsPreviewing(false);
+                    alert("Coze 试听失败，请检查 token 与网络")
+                  }
+                  return;
+                }
                 try {
+                  controller = new AbortController();
                   for (let i = 0; i < dialogueTexts.length; i++) {
                     let requestBody: any = {
                       text: dialogueTexts[i],
                       encoding: "mp3"
                     };
-                    
                     if (settings.model.includes("CosyVoice") || settings.model.includes("MOSS")) {
-                      // SiliconFlow TTS
                       requestBody = {
                         ...requestBody,
                         model: settings.model,
@@ -521,7 +603,6 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                         siliconflow_gain: settings.siliconflowGain
                       };
                     } else if (settings.model.includes("speech-2.6")) {
-                      // MiniMax TTS
                       requestBody = {
                         ...requestBody,
                         model: settings.model,
@@ -533,7 +614,6 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                         audio_format: "mp3"
                       };
                     } else {
-                      // Default TTS
                       requestBody = {
                         ...requestBody,
                         model: settings.model,
@@ -543,41 +623,52 @@ export function TtsSetupDialog({ open, onOpenChange, onSettingsSave, initialSett
                         pitch_ratio: settings.pitchRatio
                       };
                     }
-                    
                     const response = await fetch("http://localhost:8000/api/tts", {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
                       },
                       body: JSON.stringify(requestBody),
+                      signal: controller.signal,
                     });
-
                     if (response.ok) {
                       const audioBlob = await response.blob();
                       const audioUrl = URL.createObjectURL(audioBlob);
                       const audio = new Audio(audioUrl);
+                      clearTimeout(timeoutId);
+                      setIsPreviewing(false);
                       audio.play();
-                      
-                      // Wait for current audio to finish before playing next
-                      await new Promise(resolve => {
-                        audio.onended = resolve;
-                      });
-                      
-                      // Clean up the object URL after playback
+                      await new Promise(resolve => { audio.onended = resolve; });
                       URL.revokeObjectURL(audioUrl);
+                      if (timeoutHit) break;
                     } else {
                       console.error("TTS test failed:", response.statusText);
+                      clearTimeout(timeoutId);
+                      setIsPreviewing(false);
                       alert("试听失败，请检查配置");
                       break;
                     }
                   }
+                  if (!timeoutHit) {
+                    clearTimeout(timeoutId);
+                    setIsPreviewing(false);
+                  }
                 } catch (error) {
                   console.error("TTS test error:", error);
+                  clearTimeout(timeoutId);
+                  setIsPreviewing(false);
                   alert("试听失败，请检查配置和网络连接");
                 }
               }}
             >
-              对话试听
+              {isPreviewing ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  试听中...
+                </div>
+              ) : (
+                <>试听</>
+              )}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               取消
